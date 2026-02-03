@@ -87,6 +87,7 @@ jobs:
       - name: Create DMG
         run: |
           chmod +x scripts/create_dmg.sh
+          sync && sleep 3
           ./scripts/create_dmg.sh ${{ matrix.arch }}
 
       - name: List built files
