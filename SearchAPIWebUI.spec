@@ -5,10 +5,26 @@ PyInstaller spec file for Search API WebUI macOS app.
 '''
 
 import os
+import re
 from pathlib import Path
 
 # Get project paths
 project_root = Path(SPECPATH).resolve()
+
+
+# Read version from pyproject.toml
+def get_version():
+    '''Extract version from pyproject.toml'''
+    pyproject_path = project_root / 'pyproject.toml'
+    with open(pyproject_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+        match = re.search(r'^version\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
+        if match:
+            return match.group(1)
+    raise ValueError(f'Version not found in {pyproject_path}')
+
+
+APP_VERSION = get_version()
 app_module = project_root / 'search_api_webui'
 frontend_dist = project_root / 'frontend' / 'dist'
 
@@ -94,10 +110,10 @@ app = BUNDLE(
     name='SearchAPIWebUI.app',
     icon=str(project_root / 'frontend' / 'public' / 'AppIcon.icns'),
     bundle_identifier='ai.querit.search-api-webui',
-    version='0.1.7',
+    version=APP_VERSION,
     info_plist={
-        'CFBundleShortVersionString': '0.1.7',
-        'CFBundleVersion': '0.1.7',
+        'CFBundleShortVersionString': APP_VERSION,
+        'CFBundleVersion': APP_VERSION,
         'CFBundleName': 'Search API WebUI',
         'CFBundleDisplayName': 'Search API WebUI',
         'CFBundleExecutable': 'SearchAPIWebUI',
