@@ -127,11 +127,13 @@ class GenericProvider(BaseProvider):
         Args:
             query: Search query string
             api_key: API key for authentication
-            **kwargs: Additional parameters (limit, language, api_url, proxy_url, skip_warmup)
+            **kwargs: Additional parameters (limit, language, api_url, proxy_url, skip_warmup, status_callback)
 
         Returns:
             dict: Search results with 'results' and 'metrics' keys
         '''
+        # Extract status callback for real-time status updates
+        status_callback = kwargs.get('status_callback')
         # 1. Extract parameters with defaults
         limit = kwargs.get('limit', '10')
         language = kwargs.get('language')
@@ -198,10 +200,17 @@ class GenericProvider(BaseProvider):
         # Skip connection warm-up if disabled in config or by user
         if not skip_warmup and not self.config.get('skip_connection_warmup', False):
             try:
+                # Notify frontend that connection warmup is starting
+                if status_callback:
+                    status_callback('warming_up', 'Warming up connection...')
                 self._ensure_connection(url, headers)
             except Exception as e:
                 logger.warning('Connection Warm-up Warning: %s (continuing anyway)', e)
                 # Don't return error, continue with the actual request
+
+        # Notify frontend that search is starting
+        if status_callback:
+            status_callback('searching', 'Searching...')
 
         try:
             req_args = {'headers': headers, 'timeout': 30}

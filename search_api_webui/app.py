@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import platform
+import queue
 import socket
 import sys
 import threading
@@ -29,7 +30,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from search_api_webui.providers import load_providers
@@ -232,6 +233,7 @@ def search_api():
     data = request.json
     query = data.get('query')
     provider_name = data.get('provider', 'querit')
+    stream = data.get('stream', False)
 
     api_key = data.get('api_key')
 
@@ -262,6 +264,65 @@ def search_api():
         'skip_warmup': provider_config.get('skip_warmup', False),
     }
 
+    # If stream is requested, use SSE to send status updates
+    if stream:
+        def generate():
+            # Use a queue to communicate between search thread and generator
+            message_queue = queue.Queue()
+
+            def status_callback(status, message):
+                # Put status update in queue for immediate yielding
+                event_data = json.dumps({'type': 'status', 'status': status, 'message': message})
+                message_queue.put(f'data: {event_data}\n\n')
+
+            # Add status callback to search kwargs
+            search_kwargs['status_callback'] = status_callback
+
+            # Run search in background thread
+            result_container = {}
+
+            def run_search():
+                try:
+                    result = provider.search(query, api_key, **search_kwargs)
+                    result_container['result'] = result
+                except Exception as e:
+                    result_container['error'] = str(e)
+                finally:
+                    # Signal completion
+                    message_queue.put(None)
+
+            search_thread = threading.Thread(target=run_search)
+            search_thread.start()
+
+            # Yield status updates as they arrive
+            while True:
+                try:
+                    msg = message_queue.get(timeout=0.1)
+                    if msg is None:
+                        # Search completed
+                        break
+                    yield msg
+                except queue.Empty:
+                    # Send keepalive comment to prevent timeout
+                    yield ': keepalive\n\n'
+
+            # Wait for thread to finish
+            search_thread.join()
+
+            # Send final result
+            if 'error' in result_container:
+                error_result = {
+                    'type': 'result',
+                    'data': {'error': result_container['error'], 'results': [], 'metrics': {}},
+                }
+                result_data = json.dumps(error_result)
+            else:
+                result_data = json.dumps({'type': 'result', 'data': result_container['result']})
+            yield f'data: {result_data}\n\n'
+
+        return Response(generate(), mimetype='text/event-stream')
+
+    # Non-streaming response (backward compatibility)
     result = provider.search(query, api_key, **search_kwargs)
     return jsonify(result)
 

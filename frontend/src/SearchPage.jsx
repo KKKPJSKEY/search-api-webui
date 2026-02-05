@@ -58,6 +58,7 @@ function SearchPage() {
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
     const [error, setError] = useState(null);
+    const [statusMessage, setStatusMessage] = useState('');
 
     // Initial Load
     useEffect(() => {
@@ -116,6 +117,7 @@ function SearchPage() {
         setResults([]);
         setMetrics(null);
         setError(null);
+        setStatusMessage('');
 
         try {
             const res = await fetch('/api/search', {
@@ -124,20 +126,58 @@ function SearchPage() {
                 body: JSON.stringify({
                     query: query,
                     provider: selectedProvider,
+                    stream: true,
                 }),
             });
 
-            const data = await res.json();
-            if (data.error) {
-                setError(data.error);
+            // Check if response is SSE
+            const contentType = res.headers.get('content-type');
+            if (contentType && contentType.includes('text/event-stream')) {
+                // Handle SSE stream
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.type === 'status') {
+                                setStatusMessage(data.message);
+                            } else if (data.type === 'result') {
+                                if (data.data.error) {
+                                    setError(data.data.error);
+                                } else {
+                                    setResults(data.data.results || []);
+                                    setMetrics(data.data.metrics);
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
-                setResults(data.results || []);
-                setMetrics(data.metrics);
+                // Fallback to non-streaming JSON response
+                const data = await res.json();
+                if (data.error) {
+                    setError(data.error);
+                } else {
+                    setResults(data.results || []);
+                    setMetrics(data.metrics);
+                }
             }
         } catch (err) {
             setError('Network request failed. Please check the backend service.');
         } finally {
             setLoading(false);
+            setStatusMessage('');
         }
     };
 
@@ -267,7 +307,7 @@ function SearchPage() {
                                 ) : (
                                     <Search className="w-5 h-5 mr-2" />
                                 )}
-                                {loading ? 'Searching...' : 'Search'}
+                                {loading ? (statusMessage || 'Searching...') : 'Search'}
                             </Button>
                         </div>
                     </form>

@@ -51,6 +51,10 @@ function ArenaPage() {
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // Status messages for each side
+    const [leftStatus, setLeftStatus] = useState('');
+    const [rightStatus, setRightStatus] = useState('');
+
     // Results State
     const [leftResult, setLeftResult] = useState(null);
     const [rightResult, setRightResult] = useState(null);
@@ -94,30 +98,77 @@ function ArenaPage() {
             .catch(console.error);
     }, [searchParams]);
 
-    const performSearch = async (provider, queryText) => {
+    const performSearch = async (provider, queryText, setStatusCallback) => {
         try {
             const start = performance.now();
             const res = await fetch('/api/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: queryText, provider: provider }),
+                body: JSON.stringify({ query: queryText, provider: provider, stream: true }),
             });
-            const data = await res.json();
-            const end = performance.now();
 
-            // Client-side measured latency fallback if server doesn't provide it
-            const clientLatency = Math.round(end - start);
+            // Check if response is SSE
+            const contentType = res.headers.get('content-type');
+            if (contentType && contentType.includes('text/event-stream')) {
+                // Handle SSE stream
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let finalResult = null;
 
-            if (data.error) return { error: data.error };
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-            return {
-                results: data.results || [],
-                metrics: {
-                    latency_ms: data.metrics?.latency_ms || clientLatency,
-                    server_latency_ms: data.metrics?.server_latency_ms || null,
-                    size_bytes: data.metrics?.size_bytes || 0
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.type === 'status') {
+                                setStatusCallback(data.message);
+                            } else if (data.type === 'result') {
+                                const end = performance.now();
+                                const clientLatency = Math.round(end - start);
+
+                                if (data.data.error) {
+                                    finalResult = { error: data.data.error };
+                                } else {
+                                    finalResult = {
+                                        results: data.data.results || [],
+                                        metrics: {
+                                            latency_ms: data.data.metrics?.latency_ms || clientLatency,
+                                            server_latency_ms: data.data.metrics?.server_latency_ms || null,
+                                            size_bytes: data.data.metrics?.size_bytes || 0
+                                        }
+                                    };
+                                }
+                            }
+                        }
+                    }
                 }
-            };
+
+                return finalResult || { error: 'No result received' };
+            } else {
+                // Fallback to non-streaming
+                const data = await res.json();
+                const end = performance.now();
+                const clientLatency = Math.round(end - start);
+
+                if (data.error) return { error: data.error };
+
+                return {
+                    results: data.results || [],
+                    metrics: {
+                        latency_ms: data.metrics?.latency_ms || clientLatency,
+                        server_latency_ms: data.metrics?.server_latency_ms || null,
+                        size_bytes: data.metrics?.size_bytes || 0
+                    }
+                };
+            }
         } catch (err) {
             return { error: 'Network Error' };
         }
@@ -130,16 +181,20 @@ function ArenaPage() {
         setLoading(true);
         setLeftResult(null);
         setRightResult(null);
+        setLeftStatus('');
+        setRightStatus('');
 
         // Run in parallel
         const [res1, res2] = await Promise.all([
-            performSearch(leftProvider, query),
-            performSearch(rightProvider, query)
+            performSearch(leftProvider, query, setLeftStatus),
+            performSearch(rightProvider, query, setRightStatus)
         ]);
 
         setLeftResult(res1);
         setRightResult(res2);
         setLoading(false);
+        setLeftStatus('');
+        setRightStatus('');
     };
 
     return (
@@ -188,6 +243,7 @@ function ArenaPage() {
                     result={leftResult}
                     opponentResult={rightResult}
                     loading={loading}
+                    statusMessage={leftStatus}
                 />
 
                 {/* Right Column */}
@@ -199,6 +255,7 @@ function ArenaPage() {
                     result={rightResult}
                     opponentResult={leftResult}
                     loading={loading}
+                    statusMessage={rightStatus}
                 />
             </div>
         </div>
@@ -206,7 +263,7 @@ function ArenaPage() {
 }
 
 // Sub-component for each side of the arena
-function ArenaColumn({ side, providers, selected, onSelect, result, opponentResult, loading }) {
+function ArenaColumn({ side, providers, selected, onSelect, result, opponentResult, loading, statusMessage }) {
     // Calculate comparison stats
     const isWinnerLatency = result?.metrics && opponentResult?.metrics &&
         (result.metrics.latency_ms < opponentResult.metrics.latency_ms);
@@ -283,7 +340,7 @@ function ArenaColumn({ side, providers, selected, onSelect, result, opponentResu
                 {loading ? (
                     <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
                         <Loader2 className="w-8 h-8 animate-spin" />
-                        <span className="text-sm">Fetching results...</span>
+                        <span className="text-sm">{statusMessage || 'Fetching results...'}</span>
                     </div>
                 ) : result?.error ? (
                     <div className="p-4 bg-red-50 text-red-600 rounded-md flex items-center gap-2 text-sm">
