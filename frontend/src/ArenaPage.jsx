@@ -21,7 +21,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     ArrowLeft,
     Search,
@@ -38,9 +38,11 @@ import { Card } from './components/Card';
 import { Badge } from './components/Badge';
 import { ResultItem } from './components/ResultItem';
 import { cn } from './lib/utils';
+import { getPreviousEngine, getAlternativeEngine } from './utils/engineHistory';
 
 function ArenaPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [providers, setProviders] = useState([]);
 
     // Arena State
@@ -59,16 +61,38 @@ function ArenaPage() {
             .then((res) => res.json())
             .then((data) => {
                 setProviders(data);
-                if (data.length >= 2) {
-                    setLeftProvider(data[0].name);
-                    setRightProvider(data[1].name);
-                } else if (data.length === 1) {
-                    setLeftProvider(data[0].name);
-                    setRightProvider(data[0].name);
+
+                // Get current engine from URL parameter
+                const currentEngine = searchParams.get('current');
+
+                if (currentEngine && data.find(p => p.name === currentEngine)) {
+                    // Use current engine as left provider
+                    setLeftProvider(currentEngine);
+
+                    // Try to get previous engine from history
+                    const previousEngine = getPreviousEngine(currentEngine);
+
+                    if (previousEngine && data.find(p => p.name === previousEngine)) {
+                        // Use previous engine as right provider
+                        setRightProvider(previousEngine);
+                    } else {
+                        // Use alternative engine from providers list
+                        const alternativeEngine = getAlternativeEngine(currentEngine, data);
+                        setRightProvider(alternativeEngine || currentEngine);
+                    }
+                } else {
+                    // Fallback to original logic
+                    if (data.length >= 2) {
+                        setLeftProvider(data[0].name);
+                        setRightProvider(data[1].name);
+                    } else if (data.length === 1) {
+                        setLeftProvider(data[0].name);
+                        setRightProvider(data[0].name);
+                    }
                 }
             })
             .catch(console.error);
-    }, []);
+    }, [searchParams]);
 
     const performSearch = async (provider, queryText) => {
         try {
@@ -124,7 +148,11 @@ function ArenaPage() {
             <div className="bg-white border-b sticky top-0 z-10">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => navigate(`/?provider=${leftProvider}`)}
+                        >
                             <ArrowLeft className="w-5 h-5 text-gray-600" />
                         </Button>
                         <h1 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent flex items-center gap-2">

@@ -41,6 +41,7 @@ import { Card } from './components/Card';
 import { Badge } from './components/Badge';
 import { ResultItem } from './components/ResultItem';
 import { cn } from './lib/utils';
+import { addToEngineHistory } from './utils/engineHistory';
 
 function SearchPage() {
     const navigate = useNavigate();
@@ -90,11 +91,14 @@ function SearchPage() {
     };
 
     const handleArenaClick = () => {
-        navigate('/arena');
+        navigate(`/arena?current=${selectedProvider}`);
     };
 
     const handleProviderChange = (e) => {
-        setSelectedProvider(e.target.value);
+        const newProvider = e.target.value;
+        setSelectedProvider(newProvider);
+        // Track engine change in history
+        addToEngineHistory(newProvider);
     };
 
     const handleQueryChange = (e) => {
