@@ -212,7 +212,7 @@ function ArenaPage() {
                         </Button>
                         <h1 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent flex items-center gap-2">
                             <Trophy className="w-6 h-6 text-purple-600" />
-                            API Arena
+                            SearchAPIWebUI Arena
                         </h1>
                     </div>
 

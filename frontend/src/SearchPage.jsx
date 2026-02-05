@@ -264,7 +264,7 @@ function SearchPage() {
                                     variant="outline"
                                     size="icon"
                                     onClick={handleArenaClick}
-                                    title="Enter API Arena"
+                                    title="Enter SearchAPIWebUI Arena"
                                     className="h-9 w-9 border-purple-200 text-purple-600 hover:bg-purple-50 hover:text-purple-700"
                                 >
                                     <Swords className="w-4 h-4" />
