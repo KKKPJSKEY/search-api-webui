@@ -377,7 +377,7 @@ function SearchPage() {
                         {results.length > 0 ? (
                             <div className="grid gap-4">
                                 {results.map((item, idx) => (
-                                    <ResultItem key={item.url || idx} item={item} />
+                                    <ResultItem key={item.url || idx} item={item} watermark={selectedProvider} />
                                 ))}
                             </div>
                         ) : (
