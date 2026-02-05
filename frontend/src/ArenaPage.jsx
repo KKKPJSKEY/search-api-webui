@@ -200,7 +200,7 @@ function ArenaPage() {
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
             {/* Header */}
-            <div className="bg-white border-b sticky top-0 z-10">
+            <div className="bg-white border-b sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Button
@@ -352,7 +352,7 @@ function ArenaColumn({ side, providers, selected, onSelect, result, opponentResu
                             {result.results.length} Results Found
                         </div>
                         {result.results.map((item, idx) => (
-                            <ResultItem key={idx} item={item} compact={true} />
+                            <ResultItem key={idx} item={item} compact={true} watermark={selected} />
                         ))}
                     </div>
                 ) : (

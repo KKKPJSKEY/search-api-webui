@@ -180,7 +180,7 @@ function renderNestedValue(value, key) {
     return <span>{String(value)}</span>;
 }
 
-export function ResultItem({ item, compact = false }) {
+export function ResultItem({ item, compact = false, watermark = null }) {
     const [expanded, setExpanded] = useState(false);
 
     // Handle snippet: can be string or object
@@ -211,11 +211,25 @@ export function ResultItem({ item, compact = false }) {
     return (
         <Card
             className={cn(
-                'hover:shadow-md transition-shadow duration-200 border-gray-100',
+                'hover:shadow-md transition-shadow duration-200 border-gray-100 relative overflow-hidden',
                 compact ? 'p-4' : 'p-5'
             )}
         >
-            <div className="group">
+            {/* Watermark Background - Repeated Pattern */}
+            {watermark && (
+                <div className="absolute inset-0 pointer-events-none select-none opacity-[0.03] overflow-hidden flex items-start justify-end pr-4 pt-2">
+                    <div className="flex flex-col gap-4 transform rotate-12">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="text-4xl font-black tracking-wider whitespace-nowrap">
+                                {watermark}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Content */}
+            <div className="group relative z-10">
                 <a
                     href={item.url}
                     target="_blank"
