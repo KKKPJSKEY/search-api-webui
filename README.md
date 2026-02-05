@@ -16,8 +16,8 @@ Python WebUI with native Mac/Windows Apps for testing, comparing, and visualizin
   - [Brave.com](https://api-dashboard.search.brave.com/documentation)
   - [Serper.dev](https://serper.dev)
   - You can add more generic Search APIs via configuration
-* **SearchAPIWebUI Arena**: Compare two search providers side-by-side to benchmark latency, payload size, and result relevance.
-* **Performance Metrics**: Real-time display of request latency and payload size.
+* **SearchAPIWebUI Arena**: Compare two search providers side-by-side to benchmark latency, response size, and result relevance.
+* **Performance Metrics**: Real-time display of request latency and response size.
 * **Visual Rendering**: Renders standard search results (Title, URL, SiteName, SiteIcon, PageAge, Snippet) in a clean card layout.
 * **Configurable**: Easy-to-edit `providers.yaml` to add or modify search providers.
 * **Secure**: API Keys are stored locally in your $HOME folder.

@@ -365,6 +365,7 @@ function SearchPage() {
                                     <Badge
                                         variant="outline"
                                         className="gap-1 text-gray-500"
+                                        title="Response size in bytes"
                                     >
                                         <Database className="w-3 h-3" />
                                         {metrics.size_bytes} B

@@ -324,7 +324,7 @@ function ArenaColumn({ side, providers, selected, onSelect, result, opponentResu
                         <div className="space-y-1">
                             <div className="flex justify-between text-xs">
                                 <span className="flex items-center gap-1 text-gray-600">
-                                    <Database className="w-3 h-3" /> Payload
+                                    <Database className="w-3 h-3" /> Response Size
                                 </span>
                                 <span className="font-mono text-gray-900">
                                     {result.metrics.size_bytes} B
