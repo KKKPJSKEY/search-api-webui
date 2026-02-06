@@ -1,4 +1,4 @@
-name: Build Wheel, Mac App and Windows App
+name: Build Release Packages
 
 permissions:
   contents: write
@@ -12,13 +12,23 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      build_wheel:
+        description: 'Build Python Wheel'
+        type: boolean
+        required: false
+        default: false
       build_dmg:
-        description: 'Build macOS DMG (in addition to wheel)'
+        description: 'Build macOS DMG'
         type: boolean
         required: false
         default: false
       build_windows:
-        description: 'Build Windows installer (in addition to wheel)'
+        description: 'Build Windows installer'
+        type: boolean
+        required: false
+        default: false
+      build_android:
+        description: 'Build Android APK'
         type: boolean
         required: false
         default: false
@@ -116,6 +126,10 @@ jobs:
   build-python-wheel:
     name: Build Python Wheel
     runs-on: ubuntu-latest
+    # Only run wheel build if:
+    # 1. Push to a tag (v*) OR
+    # 2. Manual trigger with build_wheel=true
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_wheel == 'true')
     permissions:
       contents: write
       id-token: write  # Required for trusted publishing to PyPI
@@ -186,9 +200,258 @@ jobs:
         with:
           skip-existing: true
 
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    # Only run APK build if:
+    # 1. Push to a tag (v*) OR
+    # 2. Manual trigger with build_android=true
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_android == 'true')
+
+    container:
+      image: kivy/buildozer:latest
+      options: --privileged
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Restore Buildozer global directory cache
+        id: cache-buildozer-global
+        uses: actions/cache/restore@v4
+        with:
+          path: /root/.buildozer
+          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
+
+      - name: Restore Buildozer local directory cache
+        id: cache-buildozer-local
+        uses: actions/cache/restore@v4
+        with:
+          path: .buildozer
+          key: buildozer-local-${{ hashFiles('buildozer.spec') }}
+
+      - name: Restore Python-for-Android build artifacts cache
+        id: cache-p4a-build
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .buildozer/android/platform/build-arm64-v8a
+          key: p4a-build-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+
+      - name: Install npm dependencies and build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verify frontend build
+        run: |
+          echo "Checking frontend/dist directory:"
+          ls -la frontend/dist/
+
+      - name: Get version from pyproject.toml
+        id: get_version
+        run: |
+          VERSION=$(grep -E '^version = ' pyproject.toml | cut -d '"' -f 2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Download and setup Android SDK/NDK (cached)
+        run: |
+          yes | buildozer android update
+        env:
+          BUILDOZER_WARN_ON_ROOT: 0
+
+      - name: Build Python for Android distributions (cached)
+        run: |
+          yes | buildozer android p4a -- distributions
+        env:
+          BUILDOZER_WARN_ON_ROOT: 0
+          MAKEFLAGS: -j4
+
+      - name: Build APK
+        run: |
+          yes | buildozer -v android debug
+        env:
+          BUILDOZER_WARN_ON_ROOT: 0
+          MAKEFLAGS: -j4
+
+      - name: Verify AndroidManifest.xml
+        run: |
+          echo "=========================================="
+          echo "=== Searching for AndroidManifest.xml ==="
+          echo "=========================================="
+
+          echo "Searching for the correct AndroidManifest.xml files..."
+          echo ""
+
+          # First try to find the main project manifest (the one p4a generates)
+          MANIFEST=$(find .buildozer/android/platform/build-*/dists/*/src/main/AndroidManifest.xml 2>/dev/null | head -1)
+
+          if [ -z "$MANIFEST" ]; then
+            # Fallback: try merged manifest (final one used by Gradle)
+            MANIFEST=$(find .buildozer/android/platform/build-*/dists/*/build/intermediates/merged_manifests/*/AndroidManifest.xml 2>/dev/null | head -1)
+          fi
+
+          if [ -z "$MANIFEST" ]; then
+            # Last resort: any manifest in dists
+            MANIFEST=$(find .buildozer/android/platform/build-*/dists/*/AndroidManifest.xml 2>/dev/null | head -1)
+          fi
+
+          echo ""
+          echo "=========================================="
+          if [ -f "$MANIFEST" ]; then
+            echo "✓ Found AndroidManifest.xml at:"
+            echo "  $MANIFEST"
+            echo "=========================================="
+            echo ""
+            echo "=== FULL CONTENT ==="
+            echo ""
+            cat "$MANIFEST"
+            echo ""
+            echo "=========================================="
+            echo "=== VERIFICATION RESULTS ==="
+            echo "=========================================="
+
+            # Check for usesCleartextTraffic
+            if grep -q 'usesCleartextTraffic="true"' "$MANIFEST"; then
+              echo "✅ usesCleartextTraffic: FOUND"
+              echo ""
+              grep -n 'usesCleartextTraffic="true"' "$MANIFEST"
+              echo ""
+              echo "=========================================="
+              echo "=== Application Tag Attributes ==="
+              echo "=========================================="
+              grep -A 20 "<application" "$MANIFEST" | head -25
+              echo ""
+              echo "=========================================="
+              echo "✅ VERIFICATION PASSED"
+              echo "=========================================="
+            else
+              echo "❌ usesCleartextTraffic: NOT FOUND"
+              echo ""
+              echo "Checking all manifest files for debugging..."
+              find .buildozer/android/platform/build-*/dists -name "AndroidManifest.xml" -exec sh -c 'echo "File: {}"; grep -n "usesCleartextTraffic" "{}" || echo "  Not found"' \;
+              echo ""
+              echo "=========================================="
+              echo "❌ VERIFICATION FAILED"
+              echo "=========================================="
+              exit 1
+            fi
+
+          else
+            echo "❌ AndroidManifest.xml NOT FOUND anywhere!"
+            echo ""
+            echo "=== Available manifest files ==="
+            find .buildozer/android/platform/build-*/dists -name "AndroidManifest.xml" -type f 2>/dev/null || echo "No manifest files found"
+            echo ""
+            echo "=========================================="
+            echo "❌ VERIFICATION FAILED"
+            echo "=========================================="
+            exit 1
+          fi
+
+          echo ""
+          echo "=========================================="
+          echo "=== TEST COMPLETED ==="
+          echo "=========================================="
+
+      - name: List built files
+        run: |
+          echo "Files in bin/:"
+          ls -lh bin/ || echo "No bin directory found"
+          echo ""
+          echo "Files in .buildozer/android/platform/build-*/output:"
+          find .buildozer/android/platform -name "*.apk" -type f || echo "No APK files found"
+
+      - name: Find and rename APK
+        id: find_apk
+        run: |
+          # Find the APK file
+          APK_PATH=$(find .buildozer/android/platform/build-*/output -name "*.apk" -type f | head -1)
+
+          if [ -z "$APK_PATH" ]; then
+            # Fallback: check bin directory
+            APK_PATH=$(find bin -name "*.apk" -type f | head -1)
+          fi
+
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: No APK file found!"
+            exit 1
+          fi
+
+          echo "Found APK at: $APK_PATH"
+
+          # Create bin directory if it doesn't exist
+          mkdir -p bin
+
+          # Copy and rename APK
+          VERSION="${{ steps.get_version.outputs.version }}"
+          NEW_NAME="bin/SearchAPIWebUI-${VERSION}-android-debug.apk"
+          cp "$APK_PATH" "$NEW_NAME"
+
+          echo "apk_path=$NEW_NAME" >> $GITHUB_OUTPUT
+          echo "Renamed APK to: $NEW_NAME"
+
+          # Show APK info
+          ls -lh "$NEW_NAME"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SearchAPIWebUI-${{ steps.get_version.outputs.version }}-android
+          path: ${{ steps.find_apk.outputs.apk_path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Save Buildozer global directory cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: /root/.buildozer
+          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
+
+      - name: Save Buildozer local directory cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .buildozer
+          key: buildozer-local-${{ hashFiles('buildozer.spec') }}
+
+      - name: Save Python-for-Android build artifacts cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .buildozer/android/platform/build-arm64-v8a
+          key: p4a-build-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+
+      - name: Upload to Release (if tagged)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find_apk.outputs.apk_path }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   add-release-notes:
     name: Add Release Notes
-    needs: [build-macos, build-python-wheel, build-windows]
+    needs: [build-macos, build-python-wheel, build-windows, build-android]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -219,6 +482,9 @@ jobs:
           - SearchAPIWebUI-Windows-x64-Setup.exe: For 64-bit Windows systems
           - SearchAPIWebUI-Windows-x86-Setup.exe: For 32-bit Windows systems
 
+          ## Android Distribution
+          - SearchAPIWebUI-{version}-android-debug.apk: For Android devices (API 21+)
+
           ### Installation
           Python package:
             pip install search_api_webui-{version}-py3-none-any.whl
@@ -236,6 +502,12 @@ jobs:
 
           Most modern Windows systems should use the x64 version.
           Only use x86 version for older 32-bit Windows systems.
+
+          Android app:
+            Download and install the APK file on your Android device.
+
+          You may need to enable "Install from unknown sources" in your device settings.
+          Minimum Android version: 5.0 (API level 21).
           EOF
 
           echo "Created release notes"
