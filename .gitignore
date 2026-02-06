@@ -17,6 +17,7 @@ frontend/dist/
 .tr*/
 .hi*/
 .ba*/
+.bu*/
 
 # Build artifacts
 build/

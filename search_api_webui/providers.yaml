@@ -150,7 +150,6 @@ serper:
     fields:
       url: "link"
       title: "title"
-      snippet: "snippet"
 
 querit_sdk:
   type: "querit_sdk"
