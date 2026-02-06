@@ -25,8 +25,7 @@ dependencies = [
     "flask-cors>=3.0.0",
     "requests>=2.22.0",
     "pyyaml>=5.3",
-    "jmespath>=0.10.0",
-    "querit"
+    "jmespath>=0.10.0"
 ]
 
 [project.optional-dependencies]

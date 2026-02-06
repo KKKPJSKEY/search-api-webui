@@ -24,7 +24,6 @@ import os
 import yaml
 
 from .generic import GenericProvider
-from .querit import QueritSdkProvider
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +48,7 @@ def load_providers(file_path='providers.yaml'):
     providers = {}
     for name, conf in configs.items():
         conf['name'] = name
-        provider_type = conf.get('type', 'generic')
-
-        # Instantiate specific provider based on type or name
-        if provider_type == 'querit_sdk':
-            providers[name] = QueritSdkProvider(conf)
-        else:
-            providers[name] = GenericProvider(conf)
+        # All providers use the generic implementation
+        providers[name] = GenericProvider(conf)
 
     return providers

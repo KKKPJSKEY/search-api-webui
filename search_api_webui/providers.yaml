@@ -150,8 +150,3 @@ serper:
     fields:
       url: "link"
       title: "title"
-
-querit_sdk:
-  type: "querit_sdk"
-  description: "Official Querit Search via Python SDK"
-  default_limit: 10
