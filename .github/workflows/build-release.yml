@@ -231,27 +231,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
-      - name: Restore Buildozer global directory cache
-        id: cache-buildozer-global
-        uses: actions/cache/restore@v4
-        with:
-          path: /root/.buildozer
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
-
       - name: Restore Buildozer local directory cache
         id: cache-buildozer-local
         uses: actions/cache/restore@v4
         with:
           path: .buildozer
           key: buildozer-local-${{ hashFiles('buildozer.spec') }}
-
-      - name: Restore Python-for-Android build artifacts cache
-        id: cache-p4a-build
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            .buildozer/android/platform/build-arm64-v8a
-          key: p4a-build-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
       - name: Install npm dependencies and build frontend
         working-directory: frontend
@@ -419,27 +404,12 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Save Buildozer global directory cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: /root/.buildozer
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
-
       - name: Save Buildozer local directory cache
-        if: always()
+        if: success()
         uses: actions/cache/save@v4
         with:
           path: .buildozer
           key: buildozer-local-${{ hashFiles('buildozer.spec') }}
-
-      - name: Save Python-for-Android build artifacts cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            .buildozer/android/platform/build-arm64-v8a
-          key: p4a-build-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
       - name: Upload to Release (if tagged)
         if: startsWith(github.ref, 'refs/tags/v')
