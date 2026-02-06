@@ -256,19 +256,6 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
 
-      - name: Download and setup Android SDK/NDK (cached)
-        run: |
-          yes | buildozer android update
-        env:
-          BUILDOZER_WARN_ON_ROOT: 0
-
-      - name: Build Python for Android distributions (cached)
-        run: |
-          yes | buildozer android p4a -- distributions
-        env:
-          BUILDOZER_WARN_ON_ROOT: 0
-          MAKEFLAGS: -j4
-
       - name: Build APK
         run: |
           yes | buildozer -v android debug
@@ -278,83 +265,8 @@ jobs:
 
       - name: Verify AndroidManifest.xml
         run: |
-          echo "=========================================="
-          echo "=== Searching for AndroidManifest.xml ==="
-          echo "=========================================="
-
-          echo "Searching for the correct AndroidManifest.xml files..."
-          echo ""
-
-          # First try to find the main project manifest (the one p4a generates)
           MANIFEST=$(find .buildozer/android/platform/build-*/dists/*/src/main/AndroidManifest.xml 2>/dev/null | head -1)
-
-          if [ -z "$MANIFEST" ]; then
-            # Fallback: try merged manifest (final one used by Gradle)
-            MANIFEST=$(find .buildozer/android/platform/build-*/dists/*/build/intermediates/merged_manifests/*/AndroidManifest.xml 2>/dev/null | head -1)
-          fi
-
-          if [ -z "$MANIFEST" ]; then
-            # Last resort: any manifest in dists
-            MANIFEST=$(find .buildozer/android/platform/build-*/dists/*/AndroidManifest.xml 2>/dev/null | head -1)
-          fi
-
-          echo ""
-          echo "=========================================="
-          if [ -f "$MANIFEST" ]; then
-            echo "✓ Found AndroidManifest.xml at:"
-            echo "  $MANIFEST"
-            echo "=========================================="
-            echo ""
-            echo "=== FULL CONTENT ==="
-            echo ""
-            cat "$MANIFEST"
-            echo ""
-            echo "=========================================="
-            echo "=== VERIFICATION RESULTS ==="
-            echo "=========================================="
-
-            # Check for usesCleartextTraffic
-            if grep -q 'usesCleartextTraffic="true"' "$MANIFEST"; then
-              echo "✅ usesCleartextTraffic: FOUND"
-              echo ""
-              grep -n 'usesCleartextTraffic="true"' "$MANIFEST"
-              echo ""
-              echo "=========================================="
-              echo "=== Application Tag Attributes ==="
-              echo "=========================================="
-              grep -A 20 "<application" "$MANIFEST" | head -25
-              echo ""
-              echo "=========================================="
-              echo "✅ VERIFICATION PASSED"
-              echo "=========================================="
-            else
-              echo "❌ usesCleartextTraffic: NOT FOUND"
-              echo ""
-              echo "Checking all manifest files for debugging..."
-              find .buildozer/android/platform/build-*/dists -name "AndroidManifest.xml" -exec sh -c 'echo "File: {}"; grep -n "usesCleartextTraffic" "{}" || echo "  Not found"' \;
-              echo ""
-              echo "=========================================="
-              echo "❌ VERIFICATION FAILED"
-              echo "=========================================="
-              exit 1
-            fi
-
-          else
-            echo "❌ AndroidManifest.xml NOT FOUND anywhere!"
-            echo ""
-            echo "=== Available manifest files ==="
-            find .buildozer/android/platform/build-*/dists -name "AndroidManifest.xml" -type f 2>/dev/null || echo "No manifest files found"
-            echo ""
-            echo "=========================================="
-            echo "❌ VERIFICATION FAILED"
-            echo "=========================================="
-            exit 1
-          fi
-
-          echo ""
-          echo "=========================================="
-          echo "=== TEST COMPLETED ==="
-          echo "=========================================="
+          [ -f "$MANIFEST" ] && grep -q 'usesCleartextTraffic="true"' "$MANIFEST" || exit 1
 
       - name: List built files
         run: |
