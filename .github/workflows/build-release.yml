@@ -64,24 +64,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Cache Python virtual environment
         uses: actions/cache@v4
         with:
-          path: venv-macos-build
+          path: venv-dev
           key: ${{ runner.os }}-${{ matrix.arch }}-python-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-python-
 
       - name: Cache npm dependencies
         uses: actions/cache@v4
         with:
           path: frontend/node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
 
       - name: Install dependencies and build
         run: |
@@ -147,8 +141,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: Install npm dependencies and build frontend
         working-directory: frontend
@@ -228,12 +226,9 @@ jobs:
         with:
           path: frontend/node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
 
-      - name: Restore Buildozer local directory cache
-        id: cache-buildozer-local
-        uses: actions/cache/restore@v4
+      - name: Cache Buildozer local directory
+        uses: actions/cache@v4
         with:
           path: .buildozer
           key: buildozer-local-${{ hashFiles('buildozer.spec') }}
@@ -315,13 +310,6 @@ jobs:
           path: ${{ steps.find_apk.outputs.apk_path }}
           if-no-files-found: error
           retention-days: 30
-
-      - name: Save Buildozer local directory cache
-        if: success()
-        uses: actions/cache/save@v4
-        with:
-          path: .buildozer
-          key: buildozer-local-${{ hashFiles('buildozer.spec') }}
 
       - name: Upload to Release (if tagged)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -432,24 +420,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Cache Python virtual environment
         uses: actions/cache@v4
         with:
-          path: venv-windows-build
+          path: venv-dev
           key: ${{ runner.os }}-${{ matrix.arch }}-python-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-python-
 
       - name: Cache npm dependencies
         uses: actions/cache@v4
         with:
           path: frontend/node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
 
       - name: Install dependencies and build
         shell: bash
