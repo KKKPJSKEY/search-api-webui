@@ -17,9 +17,10 @@ if 'ANDROID_ARGUMENT' in os.environ:
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
+from kivy.core.window import Keyboard
 from android.runnable import run_on_ui_thread
 from android.permissions import request_permissions, Permission
-from jnius import autoclass
+from jnius import autoclass, PythonJavaClass, java_method
 
 # Import the Flask app
 from search_api_webui.app import app as flask_app
@@ -48,6 +49,23 @@ WebSettings = autoclass('android.webkit.WebSettings')
 Activity = autoclass('org.kivy.android.PythonActivity')
 
 
+class CustomWebViewClient(PythonJavaClass):
+    '''
+    Custom WebViewClient to handle page navigation and enable
+    proper back button support for browsing history.
+    '''
+    __javainterfaces__ = ['android/webkit/WebViewClient']
+    __javacontext__ = 'app'
+
+    @java_method('(Landroid/webkit/WebView;Ljava/lang/String;)Z')
+    def shouldOverrideUrlLoading(self, view, url):
+        '''
+        Allow WebView to handle all URL navigation internally.
+        Returns False to let WebView load the URL.
+        '''
+        return False
+
+
 class SearchWebViewApp(App):
     '''
     Main Kivy application that runs Flask in background
@@ -67,6 +85,9 @@ class SearchWebViewApp(App):
         '''
         # Set window background color
         Window.clearcolor = (1, 1, 1, 1)
+
+        # Bind back button to handle WebView navigation
+        Window.bind(on_keyboard=self.on_back_button)
 
         # Start Flask server in background thread
         Thread(target=self.start_flask_server, daemon=True).start()
@@ -126,8 +147,8 @@ class SearchWebViewApp(App):
             # Enable zoom controls (optional)
             settings.setBuiltInZoomControls(False)
 
-            # Set WebViewClient to handle navigation
-            self.webview.setWebViewClient(WebViewClient())
+            # Set custom WebViewClient to handle navigation
+            self.webview.setWebViewClient(CustomWebViewClient())
 
             # Load the Flask app
             url = f'http://localhost:{self.flask_port}'
@@ -153,6 +174,17 @@ class SearchWebViewApp(App):
         Called when app returns from background.
         '''
         pass
+
+    def on_back_button(self, window, key, *args):
+        '''
+        Handle Android back button to navigate WebView history.
+        Returns True if back navigation was handled, False otherwise.
+        '''
+        if key == Keyboard.keycodes['escape']:  # Back button on Android
+            if self.webview and self.webview.canGoBack():
+                self.webview.goBack()
+                return True
+        return False
 
 
 def main():

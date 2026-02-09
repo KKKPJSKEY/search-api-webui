@@ -259,12 +259,20 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
 
+      - name: Sync version to buildozer.spec
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          sed -i "s/^version = .*/version = $VERSION/" buildozer.spec
+          echo "Updated buildozer.spec version to $VERSION"
+          grep "^version = " buildozer.spec
+
       - name: Build APK
         run: |
           yes | buildozer -v android debug
         env:
           BUILDOZER_WARN_ON_ROOT: 0
           MAKEFLAGS: -j4
+          GRADLE_USER_HOME: .buildozer/gradle
 
       - name: Verify AndroidManifest.xml
         run: |
