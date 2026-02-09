@@ -31,7 +31,7 @@ source.exclude_dirs = tests,bin,venv,venv-dev,.git,.github,build,dist,docs,front
 source.exclude_patterns = *.pyc,*.pyo,*.spec,*.exe,*.dmg,*.app,*/CVS/*,*/RCS/*,*/tmp/*,*/__pycache__/*
 
 # (str) Application versioning (method 1)
-version = 0.2.7
+version = 0.2.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
