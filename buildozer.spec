@@ -31,7 +31,9 @@ source.exclude_dirs = tests,bin,venv,venv-dev,.git,.github,build,dist,docs,front
 source.exclude_patterns = *.pyc,*.pyo,*.spec,*.exe,*.dmg,*.app,*/CVS/*,*/RCS/*,*/tmp/*,*/__pycache__/*
 
 # (str) Application versioning (method 1)
-version = 0.2.1
+# NOTE: __VERSION__ is a placeholder replaced by scripts/build_android_apk.sh
+# The script reads the actual version from pyproject.toml during build
+version = __VERSION__
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
