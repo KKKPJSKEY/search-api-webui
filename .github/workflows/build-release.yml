@@ -497,55 +497,22 @@ jobs:
           cat > dist/RELEASE_NOTES.txt << EOF
           Search API WebUI - Release $VERSION
 
-          ## Python Package
-          - search_api_webui-$VERSION-py3-none-any.whl: Universal Python wheel package (cross-platform)
-
-          ## macOS Distribution
-          - SearchAPIWebUI-$VERSION-macOS-arm64.dmg: For Apple Silicon (M1/M2/M3/M4) Macs
-          - SearchAPIWebUI-$VERSION-macOS-x86_64.dmg: For Intel Macs
-
-          ## Windows Distribution
-          - SearchAPIWebUI-$VERSION-Windows-x64-Setup.exe: For 64-bit Windows systems
-          - SearchAPIWebUI-$VERSION-Windows-x86-Setup.exe: For 32-bit Windows systems
-
-          ## Android Distribution
-          - SearchAPIWebUI-$VERSION-android-release.apk: Signed release APK for Android devices (API 21+, arm64-v8a)
-
-          ---
-
-          ### Installation Instructions
+          ### Downloads
 
           **Python Package:**
-          \`\`\`bash
-          pip install search_api_webui-$VERSION-py3-none-any.whl
-          \`\`\`
+          - search_api_webui-$VERSION-py3-none-any.whl
 
-          **macOS App:**
-          1. Download the appropriate DMG for your system:
-             - Apple Silicon (M1/M2/M3/M4): \`SearchAPIWebUI-$VERSION-macOS-arm64.dmg\`
-             - Intel: \`SearchAPIWebUI-$VERSION-macOS-x86_64.dmg\`
-          2. Open the DMG and drag the app to Applications folder
-          3. First launch: Right-click → Open (to bypass Gatekeeper)
+          **macOS:**
+          - SearchAPIWebUI-$VERSION-macOS-arm64.dmg (Apple Silicon)
+          - SearchAPIWebUI-$VERSION-macOS-x86_64.dmg (Intel)
 
-          Note: arm64 version can run on Intel Macs via Rosetta 2, but native x86_64 version is recommended for better performance.
+          **Windows:**
+          - SearchAPIWebUI-$VERSION-Windows-x64-Setup.exe (64-bit)
+          - SearchAPIWebUI-$VERSION-Windows-x86-Setup.exe (32-bit)
 
-          **Windows App:**
-          1. Download the appropriate installer:
-             - 64-bit (recommended): \`SearchAPIWebUI-$VERSION-Windows-x64-Setup.exe\`
-             - 32-bit: \`SearchAPIWebUI-$VERSION-Windows-x86-Setup.exe\`
-          2. Run the installer and follow the prompts
-          3. Windows may show a SmartScreen warning - click "More info" → "Run anyway"
+          **Android:**
+          - SearchAPIWebUI-$VERSION-android-release.apk
 
-          **Android App:**
-          1. Download \`SearchAPIWebUI-$VERSION-android-release.apk\`
-          2. Enable "Install from unknown sources" in your device settings
-          3. Open the APK file to install
-          4. Minimum requirements: Android 5.0 (API 21+), arm64-v8a architecture
-
-          ---
-
-          ### What's New
-          See [CHANGELOG.md](https://github.com/querit-ai/search-api-webui/blob/main/CHANGELOG.md) for full release notes.
           EOF
 
           echo "Created release notes for version $VERSION"
