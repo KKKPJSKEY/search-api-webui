@@ -21,6 +21,15 @@ if 'ANDROID_ARGUMENT' in os.environ:
         os.environ['HOME'] = app_files_dir
         os.environ['XDG_CONFIG_HOME'] = app_files_dir
 
+        # Pre-create .kivy directory to avoid logo copy permission errors
+        kivy_dir = os.path.join(app_files_dir, '.kivy')
+        icon_dir = os.path.join(kivy_dir, 'icon')
+        try:
+            os.makedirs(icon_dir, mode=0o755, exist_ok=True)
+            logger.info(f'Created Kivy directories: {icon_dir}')
+        except Exception as e:
+            logger.warning(f'Could not create Kivy directories: {e}')
+
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
@@ -53,6 +62,11 @@ WebView = autoclass('android.webkit.WebView')
 WebViewClient = autoclass('android.webkit.WebViewClient')
 WebSettings = autoclass('android.webkit.WebSettings')
 Activity = autoclass('org.kivy.android.PythonActivity')
+ViewGroup_LayoutParams = autoclass('android.view.ViewGroup$LayoutParams')
+ViewGroup = autoclass('android.view.ViewGroup')
+LinearLayout_LayoutParams = autoclass('android.widget.LinearLayout$LayoutParams')
+LinearLayout = autoclass('android.widget.LinearLayout')
+Rect = autoclass('android.graphics.Rect')
 
 
 class SearchWebViewApp(App):
@@ -78,8 +92,8 @@ class SearchWebViewApp(App):
         # Start Flask server in background thread
         Thread(target=self.start_flask_server, daemon=True).start()
 
-        # Schedule WebView creation after Flask starts
-        Clock.schedule_once(self.create_webview, 2)
+        # Wait for Flask port to be available before creating WebView
+        Clock.schedule_once(self.wait_for_flask, 0)
 
         # Return a placeholder widget
         from kivy.uix.label import Label
@@ -92,7 +106,7 @@ class SearchWebViewApp(App):
         '''
         try:
             flask_app.run(
-                host='0.0.0.0',
+                host='127.0.0.1',
                 port=self.flask_port,
                 debug=False,
                 use_reloader=False,
@@ -100,6 +114,29 @@ class SearchWebViewApp(App):
             )
         except Exception as e:
             print(f'Flask server error: {e}')
+
+    def wait_for_flask(self, dt):
+        '''
+        Poll Flask port until it's available, then create WebView.
+        '''
+        import socket
+
+        max_attempts = 50  # 5 seconds max (50 * 0.1s)
+        for _ in range(max_attempts):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.1)
+            try:
+                result = sock.connect_ex(('127.0.0.1', self.flask_port))
+                sock.close()
+                if result == 0:
+                    # Port is open, Flask is ready
+                    Clock.schedule_once(self.create_webview, 0)
+                    return
+            except Exception:
+                pass
+            Clock.schedule_once(self.wait_for_flask, 0.1)
+        # Fallback: just create webview after timeout
+        Clock.schedule_once(self.create_webview, 0)
 
     def create_webview(self, dt):
         '''
@@ -142,17 +179,52 @@ class SearchWebViewApp(App):
             # Set WebViewClient to handle navigation
             self.webview.setWebViewClient(WebViewClient())
 
+            # Get status bar height and set margin
+            status_bar_height = self.get_status_bar_height()
+
+            # Create layout params with top margin for status bar
+            layout_params = LinearLayout_LayoutParams(
+                ViewGroup_LayoutParams.MATCH_PARENT,
+                ViewGroup_LayoutParams.MATCH_PARENT
+            )
+            layout_params.topMargin = status_bar_height
+
+            self.webview.setLayoutParams(layout_params)
+
+            # Create a container LinearLayout and add WebView to it
+            container = LinearLayout(context)
+            container.setOrientation(LinearLayout.VERTICAL)
+            container.setLayoutParams(LinearLayout_LayoutParams(
+                ViewGroup_LayoutParams.MATCH_PARENT,
+                ViewGroup_LayoutParams.MATCH_PARENT
+            ))
+            container.addView(self.webview)
+
+            # Replace root widget with WebView
+            Activity.mActivity.setContentView(container)
+
             # Load the Flask app
             url = f'http://localhost:{self.flask_port}'
             self.webview.loadUrl(url)
 
-            # Replace root widget with WebView
-            Activity.mActivity.setContentView(self.webview)
-
-            print(f'WebView loaded: {url}')
+            print(f'WebView loaded: {url} (status bar height: {status_bar_height}px)')
 
         except Exception as e:
             print(f'WebView setup error: {e}')
+
+    def get_status_bar_height(self):
+        '''
+        Get the height of the status bar in pixels.
+        '''
+        try:
+            rect = Rect()
+            window = Activity.mActivity.getWindow()
+            window.getDecorView().getWindowVisibleDisplayFrame(rect)
+            return rect.top
+        except Exception as e:
+            print(f'Error getting status bar height: {e}')
+            # Fallback: return a typical status bar height in dp
+            return int(25 * Activity.mActivity.getResources().getDisplayMetrics().density)
 
     def on_pause(self):
         '''
