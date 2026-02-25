@@ -365,7 +365,9 @@ jobs:
         id: cache-buildozer-global
         uses: actions/cache@v4
         with:
-          path: ~/.buildozer
+          path: |
+            ~/.buildozer
+            ~/.gradle
           key: buildozer-global-${{ hashFiles('buildozer.spec') }}
 
       - name: Cache Buildozer local directory
