@@ -163,6 +163,9 @@ class SearchWebViewApp(App):
             settings.setDatabaseEnabled(True)
             settings.setAllowFileAccess(True)
             settings.setAllowContentAccess(True)
+            settings.setUseWideViewPort(True)
+            settings.setLoadWithOverviewMode(True)
+            settings.setSupportZoom(True)
 
             # Set cache mode to default
             settings.setCacheMode(WebSettings.LOAD_DEFAULT)
