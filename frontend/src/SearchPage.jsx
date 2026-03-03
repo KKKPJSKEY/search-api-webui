@@ -20,7 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Search,
@@ -33,7 +33,9 @@ import {
     AlertCircle,
     CheckCircle2,
     XCircle,
-    Swords
+    Swords,
+    X,
+    History
 } from 'lucide-react';
 import { Button } from './components/Button';
 import { Input } from './components/Input';
@@ -46,6 +48,7 @@ import { addToEngineHistory } from './utils/engineHistory';
 function SearchPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const inputRef = useRef(null);
 
     // State Management
     const [providers, setProviders] = useState([]);
@@ -59,6 +62,11 @@ function SearchPage() {
     const [searched, setSearched] = useState(false);
     const [error, setError] = useState(null);
     const [statusMessage, setStatusMessage] = useState('');
+
+    // Search history state
+    const [searchHistory, setSearchHistory] = useState([]);
+    const [showHistory, setShowHistory] = useState(false);
+    const [inputPosition, setInputPosition] = useState({ top: 0, left: 0, width: 0 });
 
     // Initial Load
     useEffect(() => {
@@ -87,6 +95,26 @@ function SearchPage() {
         }
     }, [selectedProvider, providers]);
 
+    // Load search history on mount
+    useEffect(() => {
+        fetchSearchHistory().then(setSearchHistory);
+    }, []);
+
+    // Close history dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            // Don't close if clicking on input or history dropdown
+            const isClickOnInput = e.target.closest('input');
+            const isClickOnHistory = e.target.closest('.history-dropdown');
+            if (showHistory && !isClickOnInput && !isClickOnHistory) {
+                setShowHistory(false);
+            }
+        };
+
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [showHistory]);
+
     const handleConfigClick = () => {
         navigate(`/config?provider=${selectedProvider}`);
     };
@@ -102,8 +130,87 @@ function SearchPage() {
         addToEngineHistory(newProvider);
     };
 
-    const handleQueryChange = (e) => {
-        setQuery(e.target.value);
+    const handleQueryChange = async (e) => {
+        const value = e.target.value;
+        setQuery(value);
+        // Show history dropdown when typing or focusing
+        updateInputPosition();
+
+        if (value.trim()) {
+            // Filter by prefix from backend
+            const filtered = await fetchSearchHistory(value.trim());
+            setSearchHistory(filtered);
+            if (filtered.length > 0) {
+                setShowHistory(true);
+            }
+        } else {
+            // Load all history when input is empty
+            setSearchHistory(await fetchSearchHistory());
+            if (searchHistory.length > 0) {
+                setShowHistory(true);
+            }
+        }
+    };
+
+    const handleQueryFocus = async () => {
+        // Update position and show history when input is focused
+        updateInputPosition();
+
+        // Load all history when focusing (if input is empty)
+        if (!query.trim() && searchHistory.length === 0) {
+            const history = await fetchSearchHistory();
+            setSearchHistory(history);
+        }
+
+        if (searchHistory.length > 0) {
+            setShowHistory(true);
+        }
+    };
+
+    const updateInputPosition = () => {
+        if (inputRef.current) {
+            const rect = inputRef.current.getBoundingClientRect();
+            setInputPosition({
+                top: rect.bottom + window.scrollY,
+                left: rect.left + window.scrollX,
+                width: rect.width
+            });
+        }
+    };
+
+    const handleHistorySelect = (historyQuery) => {
+        setQuery(historyQuery);
+        setShowHistory(false);
+        // Trigger search immediately when selecting from history
+        inputRef.current?.form?.requestSubmit();
+    };
+
+    // Search history API functions
+    const fetchSearchHistory = async (prefix = '') => {
+        const url = prefix ? `/api/search-history?prefix=${encodeURIComponent(prefix)}` : '/api/search-history';
+        const response = await fetch(url);
+        if (response.ok) {
+            return await response.json();
+        }
+        return [];
+    };
+
+    const addSearchHistory = async (query) => {
+        await fetch('/api/search-history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query }),
+        });
+    };
+
+    const handleClearHistory = async () => {
+        await fetch('/api/search-history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: null }),
+        });
+        setSearchHistory([]);
+        setShowHistory(false);
     };
 
     const handleSearch = async (e) => {
@@ -111,6 +218,11 @@ function SearchPage() {
         if (!query.trim()) {
             return;
         }
+
+        // Save to search history (backend handles dedup and ordering)
+        await addSearchHistory(query.trim());
+        setSearchHistory(await fetchSearchHistory());
+        setShowHistory(false);
 
         setLoading(true);
         setSearched(true);
@@ -196,8 +308,50 @@ function SearchPage() {
                     </h1>
                 </div>
 
+                {/* Search History Dropdown - fixed position based on input location */}
+                {(() => {
+                    if (!showHistory || searchHistory.length === 0) return null;
+                    return (
+                    <div
+                        className="history-dropdown fixed z-[100]"
+                        style={{
+                            top: inputPosition.top,
+                            left: inputPosition.left,
+                            width: inputPosition.width
+                        }}
+                    >
+                        <div className="bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden">
+                            <div className="flex items-center justify-between px-3 py-2 border-b bg-gray-50">
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                    <History className="w-3 h-3" />
+                                    Recent searches
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={handleClearHistory}
+                                    className="text-xs text-gray-500 hover:text-red-600"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                            {searchHistory.map((item, idx) => (
+                                <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => handleHistorySelect(item)}
+                                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                    <Clock className="w-3 h-3 text-gray-400" />
+                                    <span className="truncate">{item}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    );
+                })()}
+
                 {/* Control Panel */}
-                <Card className="p-4 sm:p-5 md:p-6 shadow-lg hover:shadow-xl transition-shadow duration-300 border-0 ring-1 ring-gray-200/50 backdrop-blur-sm">
+                <Card className="p-4 sm:p-5 md:p-6 shadow-lg hover:shadow-xl transition-shadow duration-300 border-0 ring-1 ring-gray-200/50 backdrop-blur-sm overflow-visible">
                     <form onSubmit={handleSearch} className="space-y-4 sm:space-y-5 md:space-y-6">
 
                         {/* Top Row: Engine Selection & Status/Config */}
@@ -289,13 +443,14 @@ function SearchPage() {
 
                         {/* Bottom Row: Search Input & Action */}
                         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
-                            <div className="w-full flex-1 space-y-2">
+                            <div className="w-full flex-1 space-y-2 relative">
                                 <Input
-                                    className="h-10 sm:h-11 md:h-12 text-base sm:text-lg"
+                                    ref={inputRef}
+                                    className="h-10 sm:h-11 md:h-12 text-base sm:text-lg pr-10"
                                     placeholder="Enter your search query..."
                                     value={query}
                                     onChange={handleQueryChange}
-                                    autoFocus
+                                    onFocus={handleQueryFocus}
                                 />
                             </div>
 

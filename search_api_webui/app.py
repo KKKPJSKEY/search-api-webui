@@ -28,6 +28,7 @@ import sys
 import threading
 import time
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_from_directory
@@ -126,6 +127,7 @@ CORS(app)
 PROVIDERS_YAML = get_resource_path('providers.yaml')
 USER_CONFIG_DIR = Path.home() / '.search-api-webui'
 USER_CONFIG_JSON = USER_CONFIG_DIR / 'config.json'
+SEARCH_HISTORY_JSON = USER_CONFIG_DIR / 'search_history.json'
 
 if not USER_CONFIG_DIR.exists():
     USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -154,6 +156,53 @@ def save_stored_config(config_dict):
             json.dump(config_dict, f, indent=2)
     except Exception as e:
         logger.error(f'Error saving config: {e}')
+
+
+# Maximum number of search history to store
+MAX_SEARCH_HISTORY_SIZE = 1000
+
+
+def get_search_history():
+    if not SEARCH_HISTORY_JSON.exists():
+        return []
+    try:
+        with open(SEARCH_HISTORY_JSON, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f'Error reading search history: {e}')
+        return []
+
+
+def add_search_history(query):
+    if not query or not query.strip():
+        return
+
+    query = query.strip()
+    history = get_search_history()
+
+    # Remove if already exists (to move it to front)
+    history = [item for item in history if item.get('query') != query]
+
+    # Add to front with timestamp
+    history.insert(0, {'query': query, 'timestamp': datetime.now().isoformat()})
+
+    # Keep only MAX_SEARCH_HISTORY_SIZE items
+    if len(history) > MAX_SEARCH_HISTORY_SIZE:
+        history = history[:MAX_SEARCH_HISTORY_SIZE]
+
+    try:
+        with open(SEARCH_HISTORY_JSON, 'w', encoding='utf-8') as f:
+            json.dump(history, f, indent=2)
+    except Exception as e:
+        logger.error(f'Error saving search history: {e}')
+
+
+def save_search_history(history_list):
+    try:
+        with open(SEARCH_HISTORY_JSON, 'w', encoding='utf-8') as f:
+            json.dump(history_list, f, indent=2)
+    except Exception as e:
+        logger.error(f'Error saving search history: {e}')
 
 
 @app.route('/api/providers', methods=['GET'])
@@ -187,6 +236,34 @@ def get_providers_list():
             },
         )
     return jsonify(providers_info)
+
+
+@app.route('/api/search-history', methods=['GET'])
+def get_search_history_api():
+    prefix = request.args.get('prefix', '').strip().lower()
+    history = get_search_history()
+
+    # Filter by prefix if provided
+    if prefix:
+        history = [item for item in history if item.get('query', '').lower().startswith(prefix)]
+
+    # Return only the query strings, in order (newest first), max 10 items
+    return jsonify([item.get('query', '') for item in history[:10]])
+
+
+@app.route('/api/search-history', methods=['POST'])
+def add_search_history_api():
+    data = request.json
+    query = data.get('query', '')
+
+    if query is None:
+        # Clear all history
+        save_search_history([])
+    elif query.strip():
+        # Add new query
+        add_search_history(query.strip())
+
+    return jsonify({'success': True})
 
 
 @app.route('/api/config', methods=['POST'])
@@ -376,12 +453,12 @@ def open_browser_external():
         logger.warning(
             f'browser-open API called but not in Android app '
             f'(frozen={getattr(sys, "frozen", False)}, '
-            f'android={"ANDROID_ARGUMENT" in os.environ})'
+            f'android={"ANDROID_ARGUMENT" in os.environ})',
         )
         return jsonify({
             'error': 'Not running in Android app container',
             'frozen': getattr(sys, 'frozen', False),
-            'android': 'ANDROID_ARGUMENT' in os.environ
+            'android': 'ANDROID_ARGUMENT' in os.environ,
         }), 400
 
     try:
