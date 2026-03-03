@@ -284,6 +284,7 @@ export function ResultItem({ item, compact = false, watermark = null }) {
             <div className="group relative z-10">
                 <a
                     href={item.url}
+                    title={item.url}
                     onClick={handleLinkClick}
                     className="flex items-start justify-between gap-2"
                 >
