@@ -606,7 +606,7 @@ function SearchPage() {
                                             <div className="flex items-center justify-between mb-1">
                                                 <span className="text-xs font-medium text-indigo-600 flex items-center gap-1">
                                                     <Braces className="w-3 h-3" />
-                                                    Advance Search
+                                                    Advanced Search
                                                 </span>
                                                 {jsonError && (
                                                     <span className="text-xs text-red-500 flex items-center gap-1">
