@@ -219,6 +219,7 @@ class GenericProvider(BaseProvider):
             if json_body:
                 req_args['json'] = json_body
 
+            logger.debug('FULL_REQUEST: %s', req_args)
             # Use Session to send request (connection is reused)
             start_time = time.time()
             if method.upper() == 'GET':
@@ -243,7 +244,7 @@ class GenericProvider(BaseProvider):
             logger.error('JSON Parse Error: %s', e)
             raw_data = {}
 
-        logger.debug('Full response: %s', raw_data)
+        logger.debug('FULL_RESPONSE: %s', raw_data)
 
         mapping = self.config.get('response_mapping', {})
         # Use JMESPath to find the list of results
@@ -286,7 +287,6 @@ class GenericProvider(BaseProvider):
                 entry['snippet'] = snippet_fields
             else:
                 entry['snippet'] = ''
-            logger.debug('snippet_fields: %s', snippet_fields)
             normalized_results.append(entry)
 
         # Post-process: extract domain from URL if site_name is empty
