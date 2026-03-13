@@ -118,6 +118,8 @@ function SearchPage() {
     const [searched, setSearched] = useState(false);
     const [error, setError] = useState(null);
     const [statusMessage, setStatusMessage] = useState('');
+    const [loadError, setLoadError] = useState(false);
+    const [retryCount, setRetryCount] = useState(0);
 
     // Advanced search state
     const [advancedMode, setAdvancedMode] = useState(false);
@@ -131,6 +133,7 @@ function SearchPage() {
 
     // Initial Load
     useEffect(() => {
+        setLoadError(false);
         fetch('/api/providers')
             .then((res) => res.json())
             .then((data) => {
@@ -143,8 +146,8 @@ function SearchPage() {
                     setSelectedProvider(data[0].name);
                 }
             })
-            .catch(console.error);
-    }, [searchParams]);
+            .catch(() => setLoadError(true));
+    }, [searchParams, retryCount]);
 
     // Monitor selection to update Key status
     useEffect(() => {
@@ -341,9 +344,13 @@ function SearchPage() {
             }
         }
 
-        // Save to search history
-        await addSearchHistory(query.trim(), advancedMode, parsedExtra);
-        setSearchHistory(await fetchSearchHistory());
+        // Save to search history (non-critical, ignore failures)
+        try {
+            await addSearchHistory(query.trim(), advancedMode, parsedExtra);
+            setSearchHistory(await fetchSearchHistory());
+        } catch {
+            // History API failures should not block search
+        }
         setShowHistory(false);
 
         setLoading(true);
@@ -433,6 +440,22 @@ function SearchPage() {
                         Search API WebUI
                     </h1>
                 </div>
+
+                {/* Backend unavailable banner */}
+                {loadError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between gap-3 text-red-800">
+                        <div className="flex items-center gap-3">
+                            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                            <p className="text-sm">Cannot connect to the backend service. Make sure it is running.</p>
+                        </div>
+                        <button
+                            onClick={() => setRetryCount(c => c + 1)}
+                            className="text-sm font-medium text-red-700 hover:text-red-900 underline whitespace-nowrap flex-shrink-0"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                )}
 
                 {/* Search History Dropdown - fixed position based on input location */}
                 {(() => {

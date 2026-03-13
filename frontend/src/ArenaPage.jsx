@@ -44,6 +44,8 @@ function ArenaPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [providers, setProviders] = useState([]);
+    const [loadError, setLoadError] = useState(false);
+    const [retryCount, setRetryCount] = useState(0);
 
     // Arena State
     const [leftProvider, setLeftProvider] = useState('');
@@ -61,6 +63,7 @@ function ArenaPage() {
 
     // Initial Load
     useEffect(() => {
+        setLoadError(false);
         fetch('/api/providers')
             .then((res) => res.json())
             .then((data) => {
@@ -95,8 +98,8 @@ function ArenaPage() {
                     }
                 }
             })
-            .catch(console.error);
-    }, [searchParams]);
+            .catch(() => setLoadError(true));
+    }, [searchParams, retryCount]);
 
     const performSearch = async (provider, queryText, setStatusCallback) => {
         try {
@@ -237,6 +240,24 @@ function ArenaPage() {
                     </form>
                 </div>
             </div>
+
+            {/* Backend unavailable banner */}
+            {loadError && (
+                <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 pt-3">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 flex items-center justify-between gap-3 text-red-800">
+                        <div className="flex items-center gap-3">
+                            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                            <p className="text-sm">Cannot connect to the backend service. Make sure it is running.</p>
+                        </div>
+                        <button
+                            onClick={() => setRetryCount(c => c + 1)}
+                            className="text-sm font-medium text-red-700 hover:text-red-900 underline whitespace-nowrap flex-shrink-0"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Main Content */}
             <div className="flex-1 max-w-7xl mx-auto w-full p-2 sm:p-3 md:p-4 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">

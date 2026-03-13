@@ -22,7 +22,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Key, Save, Server, Code, Trash2, Settings2 } from 'lucide-react';
+import { ArrowLeft, Key, Save, Server, Code, Trash2, Settings2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from './components/Button';
 import { Input } from './components/Input';
 import { Card } from './components/Card';
@@ -47,6 +47,15 @@ function ConfigPage() {
 
     const [currentDetails, setCurrentDetails] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [loadError, setLoadError] = useState(false);
+    const [saveStatus, setSaveStatus] = useState(null); // { type: 'success'|'error', text: string }
+
+    // Auto-clear save status after 4 seconds
+    useEffect(() => {
+        if (!saveStatus) return;
+        const timer = setTimeout(() => setSaveStatus(null), 4000);
+        return () => clearTimeout(timer);
+    }, [saveStatus]);
 
     // Initial Load
     useEffect(() => {
@@ -54,6 +63,7 @@ function ConfigPage() {
     }, []);
 
     const fetchProviders = () => {
+        setLoadError(false);
         fetch('/api/providers')
             .then(res => res.json())
             .then(data => {
@@ -74,7 +84,7 @@ function ConfigPage() {
                     }
                 }
             })
-            .catch(console.error);
+            .catch(() => setLoadError(true));
     };
 
     const selectProvider = (name, list = providers) => {
@@ -135,10 +145,10 @@ function ConfigPage() {
                     skip_warmup: skipWarmup
                 })
             });
-            alert('API Key removed.');
+            setSaveStatus({ type: 'success', text: 'API Key removed successfully.' });
             fetchProviders();
         } catch (e) {
-            alert('Failed to remove key.');
+            setSaveStatus({ type: 'error', text: 'Failed to remove API Key. Please try again.' });
         } finally {
             setSaving(false);
         }
@@ -175,11 +185,11 @@ function ConfigPage() {
                 body: JSON.stringify(payload)
             });
 
-            alert(`Configuration for ${selectedName} saved.`);
+            setSaveStatus({ type: 'success', text: `Configuration for ${selectedName} saved.` });
             setApiKey(''); // Clear input for security
             fetchProviders(); // Refresh status
         } catch (e) {
-            alert('Save failed.');
+            setSaveStatus({ type: 'error', text: 'Save failed. Please check your connection and try again.' });
         } finally {
             setSaving(false);
         }
@@ -195,6 +205,22 @@ function ConfigPage() {
                 >
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Search
                 </Button>
+
+                {/* Backend unavailable banner */}
+                {loadError && (
+                    <div className="mb-4 sm:mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between gap-3 text-red-800">
+                        <div className="flex items-center gap-3">
+                            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                            <p className="text-sm">Cannot connect to the backend service. Make sure it is running.</p>
+                        </div>
+                        <button
+                            onClick={() => fetchProviders()}
+                            className="text-sm font-medium text-red-700 hover:text-red-900 underline whitespace-nowrap flex-shrink-0"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                )}
 
                 <div className="space-y-4 sm:space-y-6">
                     <div>
@@ -365,12 +391,21 @@ function ConfigPage() {
                         </div>
 
                         {/* Save Action */}
-                        <div className="pt-4">
+                        <div className="pt-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
                             <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
                                 <Save className="w-4 h-4 mr-2" />
                                 <span className="hidden sm:inline">{saving ? 'Saving Configuration...' : 'Save Configuration'}</span>
                                 <span className="sm:hidden">{saving ? 'Saving...' : 'Save'}</span>
                             </Button>
+                            {saveStatus && (
+                                <div className={`flex items-center gap-2 text-sm ${saveStatus.type === 'success' ? 'text-emerald-700' : 'text-red-700'}`}>
+                                    {saveStatus.type === 'success'
+                                        ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                                        : <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                    }
+                                    <span>{saveStatus.text}</span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Technical Details (Read-only) */}
