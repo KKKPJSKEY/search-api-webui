@@ -490,16 +490,16 @@ function SearchPage() {
                     <form onSubmit={handleSearch} className="space-y-4 sm:space-y-5 md:space-y-6">
 
                         {/* Top Row: Engine Selection & Status/Config */}
-                        <div className="flex flex-col sm:flex-col md:flex-row justify-between items-stretch sm:items-stretch md:items-center gap-3 sm:gap-4">
+                        <div className="flex flex-row justify-between items-center gap-3">
                             {/* Left: Engine Selector */}
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full md:w-auto">
-                                <label className="text-sm font-medium text-gray-700 sm:whitespace-nowrap">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                                     Engine
                                 </label>
-                                <div className="relative w-full sm:flex-1 md:w-64">
+                                <div className="relative min-w-0 flex-1 max-w-xs">
                                     <select
                                         className={cn(
-                                            'flex h-10 sm:h-11 md:h-12 w-full items-center',
+                                            'flex h-10 w-full items-center',
                                             'justify-between rounded-md border',
                                             'border-gray-200 bg-white px-3 py-2',
                                             'text-sm ring-offset-background',
@@ -521,7 +521,7 @@ function SearchPage() {
                                     </select>
                                     <ChevronDown
                                         className={cn(
-                                            'absolute right-3 top-2.5 sm:top-3 md:top-3.5 h-4 w-4',
+                                            'absolute right-3 top-2.5 h-4 w-4',
                                             'opacity-50 pointer-events-none'
                                         )}
                                     />
@@ -529,12 +529,12 @@ function SearchPage() {
                             </div>
 
                             {/* Right: Status Pill + Arena + Config Button */}
-                            <div className="flex items-center justify-between sm:justify-center md:justify-end gap-2 sm:gap-3 w-full md:w-auto">
+                            <div className="flex items-center gap-2 flex-shrink-0">
                                 {/* Status Pill */}
                                 <div
                                     className={cn(
-                                        'flex items-center gap-1 sm:gap-1.5 text-xs font-medium',
-                                        'px-2 sm:px-2.5 md:px-3 py-1 sm:py-1.5 rounded-full border-2',
+                                        'flex items-center gap-1.5 text-xs font-medium',
+                                        'px-2.5 py-1.5 rounded-full border-2',
                                         'flex-shrink-0 shadow-sm transition-all duration-200',
                                         hasKey
                                             ? 'bg-emerald-100 text-emerald-700 border-emerald-300 shadow-emerald-200/50'
@@ -542,12 +542,11 @@ function SearchPage() {
                                     )}
                                 >
                                     {hasKey ? (
-                                        <CheckCircle2 className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-green-600" />
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
                                     ) : (
-                                        <XCircle className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-red-600" />
+                                        <XCircle className="w-3.5 h-3.5 text-red-600" />
                                     )}
-                                    <span className="hidden sm:inline">{hasKey ? 'Ready' : 'No API Key'}</span>
-                                    <span className="sm:hidden">{hasKey ? 'OK' : 'No Key'}</span>
+                                    <span>{hasKey ? 'Ready' : 'No API Key'}</span>
                                 </div>
 
                                 {/* Arena Button */}
@@ -557,9 +556,9 @@ function SearchPage() {
                                     size="icon"
                                     onClick={handleArenaClick}
                                     title="Enter SearchAPIWebUI Arena"
-                                    className="h-8 w-8 sm:h-9 sm:w-9 border-2 border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 hover:border-purple-400 hover:scale-105 transition-transform duration-200 flex-shrink-0 shadow-sm"
+                                    className="h-9 w-9 border-2 border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 hover:border-purple-400 hover:scale-105 transition-transform duration-200 flex-shrink-0 shadow-sm"
                                 >
-                                    <Swords className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                    <Swords className="w-4 h-4" />
                                 </Button>
 
                                 {/* Config Button */}
@@ -569,9 +568,9 @@ function SearchPage() {
                                     size="icon"
                                     onClick={handleConfigClick}
                                     title="Configure Provider"
-                                    className="h-8 w-8 sm:h-9 sm:w-9 border-gray-200 hover:bg-gray-100 hover:text-gray-900 flex-shrink-0"
+                                    className="h-9 w-9 border-gray-200 hover:bg-gray-100 hover:text-gray-900 flex-shrink-0"
                                 >
-                                    <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600" />
+                                    <Settings className="w-4 h-4 text-gray-600" />
                                 </Button>
                             </div>
                         </div>
