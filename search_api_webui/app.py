@@ -173,7 +173,7 @@ def get_search_history():
         return []
 
 
-def add_search_history(query):
+def add_search_history(query, advanced=False, extra_json=None):
     if not query or not query.strip():
         return
 
@@ -183,8 +183,14 @@ def add_search_history(query):
     # Remove if already exists (to move it to front)
     history = [item for item in history if item.get('query') != query]
 
+    # Build new history entry
+    new_entry = {'query': query, 'timestamp': datetime.now().isoformat()}
+    if advanced:
+        new_entry['advanced'] = True
+        new_entry['extra_json'] = extra_json or {}
+
     # Add to front with timestamp
-    history.insert(0, {'query': query, 'timestamp': datetime.now().isoformat()})
+    history.insert(0, new_entry)
 
     # Keep only MAX_SEARCH_HISTORY_SIZE items
     if len(history) > MAX_SEARCH_HISTORY_SIZE:
@@ -228,7 +234,6 @@ def get_providers_list():
                 'user_settings': {
                     'api_url': user_conf.get('api_url', ''),
                     'limit': user_conf.get('limit', '10'),
-                    'language': user_conf.get('language'),
                     'use_proxy': user_conf.get('use_proxy', False),
                     'proxy_url': user_conf.get('proxy_url', ''),
                     'skip_warmup': user_conf.get('skip_warmup', False),
@@ -247,8 +252,15 @@ def get_search_history_api():
     if prefix:
         history = [item for item in history if item.get('query', '').lower().startswith(prefix)]
 
-    # Return only the query strings, in order (newest first), max 10 items
-    return jsonify([item.get('query', '') for item in history[:10]])
+    # Return query with optional advanced flag, newest first, max 10 items
+    result = []
+    for item in history[:10]:
+        entry = {'query': item.get('query', '')}
+        if item.get('advanced'):
+            entry['advanced'] = True
+            entry['extra_json'] = item.get('extra_json', {})
+        result.append(entry)
+    return jsonify(result)
 
 
 @app.route('/api/search-history', methods=['POST'])
@@ -260,8 +272,10 @@ def add_search_history_api():
         # Clear all history
         save_search_history([])
     elif query.strip():
-        # Add new query
-        add_search_history(query.strip())
+        # Add new query (with optional advanced search metadata)
+        advanced = data.get('advanced', False)
+        extra_json = data.get('extra_json', {})
+        add_search_history(query.strip(), advanced=advanced, extra_json=extra_json)
 
     return jsonify({'success': True})
 
@@ -278,7 +292,6 @@ def update_config():
 
     api_url = data.get('api_url', '').strip()
     limit = data.get('limit', '10')
-    language = data.get('language')
     use_proxy = data.get('use_proxy', False)
     proxy_url = data.get('proxy_url', '').strip()
     skip_warmup = data.get('skip_warmup', False)
@@ -302,11 +315,6 @@ def update_config():
         all_config[provider_name]['limit'] = limit
     elif 'limit' in all_config[provider_name]:
         del all_config[provider_name]['limit']
-
-    if language:
-        all_config[provider_name]['language'] = language
-    elif 'language' in all_config[provider_name]:
-        del all_config[provider_name]['language']
 
     # Save proxy settings
     if use_proxy:
@@ -343,6 +351,7 @@ def search_api():
     query = data.get('query')
     provider_name = data.get('provider', 'querit')
     stream = data.get('stream', False)
+    extra_json = data.get('extra_json')  # Advanced search: extra JSON params to merge into payload
 
     api_key = data.get('api_key')
 
@@ -368,9 +377,9 @@ def search_api():
     search_kwargs = {
         'api_url': provider_config.get('api_url'),
         'limit': provider_config.get('limit'),
-        'language': provider_config.get('language'),
         'proxy_url': provider_config.get('proxy_url') if provider_config.get('use_proxy') else None,
         'skip_warmup': provider_config.get('skip_warmup', False),
+        'extra_json': extra_json,
     }
 
     # If stream is requested, use SSE to send status updates

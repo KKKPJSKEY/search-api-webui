@@ -41,7 +41,6 @@ function ConfigPage() {
     // Advanced Settings
     const [apiUrl, setApiUrl] = useState('');
     const [limit, setLimit] = useState('10');
-    const [language, setLanguage] = useState('');
     const [useProxy, setUseProxy] = useState(false);
     const [proxyUrl, setProxyUrl] = useState('');
     const [skipWarmup, setSkipWarmup] = useState(false);
@@ -93,7 +92,6 @@ function ConfigPage() {
             if (p.user_settings) {
                 setApiUrl(p.user_settings.api_url || '');
                 setLimit(p.user_settings.limit || '10');
-                setLanguage(p.user_settings.language || '');
                 setUseProxy(p.user_settings.use_proxy || false);
                 setProxyUrl(p.user_settings.proxy_url || '');
                 setSkipWarmup(p.user_settings.skip_warmup || false);
@@ -101,7 +99,6 @@ function ConfigPage() {
                 // Reset to defaults if no config exists
                 setApiUrl('');
                 setLimit('10');
-                setLanguage('');
                 setUseProxy(false);
                 setProxyUrl('');
                 setSkipWarmup(false);
@@ -133,7 +130,6 @@ function ConfigPage() {
                     // Keep other settings as they are, or reset them if you prefer
                     api_url: apiUrl,
                     limit: limit,
-                    language: language,
                     use_proxy: useProxy,
                     proxy_url: proxyUrl,
                     skip_warmup: skipWarmup
@@ -162,7 +158,6 @@ function ConfigPage() {
                 api_key: apiKey,
                 api_url: apiUrl,
                 limit: limit,
-                language: language,
                 use_proxy: useProxy,
                 proxy_url: proxyUrl,
                 skip_warmup: skipWarmup
@@ -312,17 +307,6 @@ function ConfigPage() {
                                         placeholder="10"
                                         value={limit}
                                         onChange={(e) => setLimit(e.target.value)}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-xs font-medium text-gray-600">
-                                        Language Code
-                                    </label>
-                                    <Input
-                                        placeholder="e.g., en-US"
-                                        value={language}
-                                        onChange={(e) => setLanguage(e.target.value)}
                                     />
                                 </div>
                             </div>

@@ -8,6 +8,19 @@ querit:
   payload:
     query: "{query}"
     count: "{limit}"
+  advanced_payload_tpl:
+    count: 5
+    filters:
+      sites:
+        include: []
+        exclude: []
+      timeRange:
+        date: ""
+      geo:
+        countries:
+          include: []
+      languages:
+        include: []
   response_mapping:
     root_path: "results.result"
     server_latency_path: "took"
@@ -27,6 +40,16 @@ you:
     query: "{query}"
     count: "{limit}"
   payload: {}
+  advanced_params_tpl:
+    count: 5
+    freshness: "week"
+    offset: 0
+    country: ""
+    language: ""
+    safesearch: "off"
+    livecrawl: ""
+    livecrawl_formats: ""
+    crawl_timeout: 10
   response_mapping:
     root_path: "results.web"
     server_latency_path: "metadata.latency"
@@ -48,6 +71,17 @@ tavily:
     max_results: "{limit}"
     search_depth: "basic"
     include_favicon: "true"
+  advanced_payload_tpl:
+    max_results: 5
+    search_depth: ""
+    chunks_per_source: 1
+    include_domains: []
+    exclude_domains: []
+    include_favicon: "true"
+    topic: "general"
+    start_date: ""
+    end_date: ""
+    country: ""
   response_mapping:
     root_path: "results"
     server_latency_path: "response_time"
@@ -68,6 +102,16 @@ exa:
     query: "{query}"
     numResults: "{limit}"
     type: "auto"
+  advanced_payload_tpl:
+    numResults: 5
+    type: "auto"
+    useAutoprompt: true
+    includeDomains: []
+    excludeDomains: []
+    startCrawlDate: ""
+    endCrawlDate: ""
+    startPublishedDate: ""
+    endPublishedDate: ""
   response_mapping:
     root_path: "results"
     fields:
@@ -87,6 +131,9 @@ parallel:
     mode: "one-shot"
     max_results: "{limit}"
     objective: "{query}"
+  advanced_payload_tpl:
+    mode: "one-shot"
+    max_results: "{limit}"
   response_mapping:
     root_path: "results"
     fields:
@@ -109,6 +156,15 @@ baidu:
     resource_type_filter:
       - type: "web"
         top_k: "{limit}"
+  advanced_payload_tpl:
+    search_filter:
+      match:
+        site: []
+    search_recency_filter: ""
+    search_source: "baidu_search_v2"
+    resource_type_filter:
+      - type: "web"
+        top_k: "5"
   response_mapping:
     root_path: "references"
     fields:
@@ -128,6 +184,14 @@ brave:
     q: "{query}"
     count: "{limit}"
   payload: {}
+  advanced_params_tpl:
+    count: 5
+    offset: 0
+    country: "US"
+    search_lang: "en"
+    freshness: ""
+    result_filter: "web"
+    safesearch: off
   response_mapping:
     root_path: "web.results"
     fields:
@@ -145,6 +209,8 @@ serper:
   payload:
     q: "{query}"
     num: "{limit}"
+  advanced_payload_tpl:
+    num: 5
   response_mapping:
     root_path: "organic"
     fields:

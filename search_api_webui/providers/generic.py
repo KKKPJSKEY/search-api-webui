@@ -136,10 +136,10 @@ class GenericProvider(BaseProvider):
         status_callback = kwargs.get('status_callback')
         # 1. Extract parameters with defaults
         limit = kwargs.get('limit', '10')
-        language = kwargs.get('language')
         custom_url = kwargs.get('api_url')
         proxy_url = kwargs.get('proxy_url')
         skip_warmup = kwargs.get('skip_warmup', False)
+        extra_json = kwargs.get('extra_json')  # Advanced search: caller-supplied extra params
 
         # 2. Configure proxy for this request if provided
         if proxy_url:
@@ -183,14 +183,22 @@ class GenericProvider(BaseProvider):
             'api_key': api_key,
             'limit': limit,
         }
-        # Only add language to context if provided
-        if language:
-            context['language'] = language
 
         # 5. construct request components
         headers = self._fill_template(self.config.get('headers', {}), **context)
         params = self._fill_template(self.config.get('params', {}), **context)
         json_body = self._fill_template(self.config.get('payload', {}), **context)
+
+        # Merge extra_json into the appropriate request component (advanced search mode).
+        # For GET providers, extra_json is merged into query params (advanced_params style).
+        # For POST providers, extra_json is merged into the JSON body (advanced_payload style).
+        # Placeholders like {query}/{api_key}/{limit} in extra_json are also resolved.
+        if extra_json and isinstance(extra_json, dict):
+            filled_extra = self._fill_template(extra_json, **context)
+            if method.upper() == 'GET':
+                params = {**params, **filled_extra}
+            else:
+                json_body = {**json_body, **filled_extra}
 
         logger.info('[%s] Search: URL=%s | Method=%s',
                   self.config.get('name', 'Unknown'), url, method)

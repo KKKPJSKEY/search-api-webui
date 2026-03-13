@@ -35,7 +35,8 @@ import {
     XCircle,
     Swords,
     X,
-    History
+    History,
+    Braces,
 } from 'lucide-react';
 import { Button } from './components/Button';
 import { Input } from './components/Input';
@@ -45,10 +46,65 @@ import { ResultItem } from './components/ResultItem';
 import { cn } from './lib/utils';
 import { addToEngineHistory } from './utils/engineHistory';
 
+/**
+ * Build the initial advanced JSON for a provider by merging payload/params and advanced_payload/advanced_params.
+ * - {query} and {api_key} are stripped (not user-editable in this panel)
+ * - {limit} is resolved to the actual configured limit value so the user can adjust it
+ * - For POST providers: static payload fields + advanced_payload are included
+ * - For GET providers: static params fields + advanced_params are included
+ */
+function buildAdvancedJson(provider) {
+    if (!provider) return {};
+    const details = provider.details || {};
+    const method = (details.method || 'GET').toUpperCase();
+    const limit = parseInt(provider.user_settings?.limit ?? '10', 10) || 10;
+
+    const SKIP_PLACEHOLDERS = new Set(['{query}', '{api_key}']);
+    const LIMIT_PLACEHOLDER_RE = /^\{limit\}$/i;
+
+    const filterTemplate = (obj) => {
+        if (typeof obj === 'string') {
+            const trimmed = obj.trim();
+            if (SKIP_PLACEHOLDERS.has(trimmed)) return null;
+            if (LIMIT_PLACEHOLDER_RE.test(trimmed)) return limit;
+            return obj;
+        }
+        if (Array.isArray(obj)) {
+            const arr = obj.map(filterTemplate).filter(v => v !== null);
+            return arr;
+        }
+        if (obj !== null && typeof obj === 'object') {
+            const filtered = {};
+            for (const [k, v] of Object.entries(obj)) {
+                const result = filterTemplate(v);
+                if (result !== null) filtered[k] = result;
+            }
+            return filtered;
+        }
+        return obj;
+    };
+
+    if (method === 'GET') {
+        const params = filterTemplate(details.params || {});
+        const advanced = details.advanced_params_tpl || {};
+        return Object.fromEntries(
+            Object.entries(advanced).map(([k, v]) => [k, k in params ? params[k] : v])
+        );
+    } else {
+        const payload = filterTemplate(details.payload || {});
+        const advanced = details.advanced_payload_tpl || {};
+        return Object.fromEntries(
+            Object.entries(advanced).map(([k, v]) => [k, k in payload ? payload[k] : v])
+        );
+    }
+}
+
 function SearchPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const inputRef = useRef(null);
+    const jsonEditorRef = useRef(null);
+    const skipTemplateLoadRef = useRef(false);
 
     // State Management
     const [providers, setProviders] = useState([]);
@@ -62,6 +118,11 @@ function SearchPage() {
     const [searched, setSearched] = useState(false);
     const [error, setError] = useState(null);
     const [statusMessage, setStatusMessage] = useState('');
+
+    // Advanced search state
+    const [advancedMode, setAdvancedMode] = useState(false);
+    const [advancedJson, setAdvancedJson] = useState('{}');
+    const [jsonError, setJsonError] = useState(null);
 
     // Search history state
     const [searchHistory, setSearchHistory] = useState([]);
@@ -77,10 +138,8 @@ function SearchPage() {
                 // Check if there's a provider parameter in URL
                 const providerFromUrl = searchParams.get('provider');
                 if (providerFromUrl && data.find(p => p.name === providerFromUrl)) {
-                    // If URL has a valid provider parameter, select it
                     setSelectedProvider(providerFromUrl);
                 } else if (data.length > 0) {
-                    // Otherwise, select the first one
                     setSelectedProvider(data[0].name);
                 }
             })
@@ -95,6 +154,30 @@ function SearchPage() {
         }
     }, [selectedProvider, providers]);
 
+    // When provider changes in advanced mode, refresh the JSON template
+    useEffect(() => {
+        if (advancedMode && providers.length > 0) {
+            if (skipTemplateLoadRef.current) {
+                skipTemplateLoadRef.current = false;
+                return;
+            }
+            const p = providers.find((item) => item.name === selectedProvider);
+            if (p) {
+                setAdvancedJson(JSON.stringify(buildAdvancedJson(p), null, 2));
+                setJsonError(null);
+            }
+        }
+    }, [selectedProvider, advancedMode, providers]);
+
+    // Auto-resize textarea to fit content whenever advancedJson changes or advanced mode is toggled
+    useEffect(() => {
+        if (!advancedMode) return;
+        const el = jsonEditorRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+    }, [advancedJson, advancedMode]);
+
     // Load search history on mount
     useEffect(() => {
         fetchSearchHistory().then(setSearchHistory);
@@ -103,8 +186,7 @@ function SearchPage() {
     // Close history dropdown when clicking outside
     useEffect(() => {
         const handleClickOutside = (e) => {
-            // Don't close if clicking on input or history dropdown
-            const isClickOnInput = e.target.closest('input');
+            const isClickOnInput = e.target.closest('input') || e.target.closest('textarea');
             const isClickOnHistory = e.target.closest('.history-dropdown');
             if (showHistory && !isClickOnInput && !isClickOnHistory) {
                 setShowHistory(false);
@@ -126,25 +208,45 @@ function SearchPage() {
     const handleProviderChange = (e) => {
         const newProvider = e.target.value;
         setSelectedProvider(newProvider);
-        // Track engine change in history
         addToEngineHistory(newProvider);
+    };
+
+    const handleAdvancedToggle = () => {
+        if (!advancedMode) {
+            // Entering advanced mode: load template for current provider
+            const p = providers.find((item) => item.name === selectedProvider);
+            if (p) {
+                setAdvancedJson(JSON.stringify(buildAdvancedJson(p), null, 2));
+                setJsonError(null);
+            }
+        }
+        setAdvancedMode((prev) => !prev);
+        setShowHistory(false);
+    };
+
+    const handleJsonChange = (e) => {
+        const value = e.target.value;
+        setAdvancedJson(value);
+        try {
+            JSON.parse(value);
+            setJsonError(null);
+        } catch {
+            setJsonError('Invalid JSON');
+        }
     };
 
     const handleQueryChange = async (e) => {
         const value = e.target.value;
         setQuery(value);
-        // Show history dropdown when typing or focusing
         updateInputPosition();
 
         if (value.trim()) {
-            // Filter by prefix from backend
             const filtered = await fetchSearchHistory(value.trim());
             setSearchHistory(filtered);
             if (filtered.length > 0) {
                 setShowHistory(true);
             }
         } else {
-            // Load all history when input is empty
             setSearchHistory(await fetchSearchHistory());
             if (searchHistory.length > 0) {
                 setShowHistory(true);
@@ -153,10 +255,8 @@ function SearchPage() {
     };
 
     const handleQueryFocus = async () => {
-        // Update position and show history when input is focused
         updateInputPosition();
 
-        // Load all history when focusing (if input is empty)
         if (!query.trim() && searchHistory.length === 0) {
             const history = await fetchSearchHistory();
             setSearchHistory(history);
@@ -168,8 +268,9 @@ function SearchPage() {
     };
 
     const updateInputPosition = () => {
-        if (inputRef.current) {
-            const rect = inputRef.current.getBoundingClientRect();
+        const el = advancedMode ? jsonEditorRef.current : inputRef.current;
+        if (el) {
+            const rect = el.getBoundingClientRect();
             setInputPosition({
                 top: rect.bottom + window.scrollY,
                 left: rect.left + window.scrollX,
@@ -178,8 +279,15 @@ function SearchPage() {
         }
     };
 
-    const handleHistorySelect = (historyQuery) => {
-        setQuery(historyQuery);
+    const handleHistorySelect = (item) => {
+        setQuery(item.query);
+        if (item.advanced && item.extra_json) {
+            // Restore advanced mode with saved extra_json, skip template override
+            skipTemplateLoadRef.current = true;
+            setAdvancedMode(true);
+            setAdvancedJson(JSON.stringify(item.extra_json, null, 2));
+            setJsonError(null);
+        }
         setShowHistory(false);
         // Trigger search immediately when selecting from history
         inputRef.current?.form?.requestSubmit();
@@ -195,11 +303,16 @@ function SearchPage() {
         return [];
     };
 
-    const addSearchHistory = async (query) => {
+    const addSearchHistory = async (q, advanced, extraJson) => {
+        const body = { query: q };
+        if (advanced) {
+            body.advanced = true;
+            body.extra_json = extraJson;
+        }
         await fetch('/api/search-history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query }),
+            body: JSON.stringify(body),
         });
     };
 
@@ -215,12 +328,21 @@ function SearchPage() {
 
     const handleSearch = async (e) => {
         e.preventDefault();
-        if (!query.trim()) {
-            return;
+        if (!query.trim()) return;
+
+        // Validate JSON in advanced mode before submitting
+        let parsedExtra = null;
+        if (advancedMode) {
+            try {
+                parsedExtra = JSON.parse(advancedJson);
+            } catch {
+                setJsonError('Invalid JSON — please fix before searching');
+                return;
+            }
         }
 
-        // Save to search history (backend handles dedup and ordering)
-        await addSearchHistory(query.trim());
+        // Save to search history
+        await addSearchHistory(query.trim(), advancedMode, parsedExtra);
         setSearchHistory(await fetchSearchHistory());
         setShowHistory(false);
 
@@ -232,20 +354,24 @@ function SearchPage() {
         setStatusMessage('');
 
         try {
+            const body = {
+                query: query,
+                provider: selectedProvider,
+                stream: true,
+            };
+            if (advancedMode && parsedExtra) {
+                body.extra_json = parsedExtra;
+            }
+
             const res = await fetch('/api/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    query: query,
-                    provider: selectedProvider,
-                    stream: true,
-                }),
+                body: JSON.stringify(body),
             });
 
             // Check if response is SSE
             const contentType = res.headers.get('content-type');
             if (contentType && contentType.includes('text/event-stream')) {
-                // Handle SSE stream
                 const reader = res.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
@@ -341,8 +467,17 @@ function SearchPage() {
                                     onClick={() => handleHistorySelect(item)}
                                     className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
                                 >
-                                    <Clock className="w-3 h-3 text-gray-400" />
-                                    <span className="truncate">{item}</span>
+                                    {item.advanced ? (
+                                        <Braces className="w-3 h-3 text-indigo-400 flex-shrink-0" />
+                                    ) : (
+                                        <Clock className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                                    )}
+                                    <span className="truncate flex-1">{item.query}</span>
+                                    {item.advanced && (
+                                        <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded px-1 flex-shrink-0">
+                                            advanced
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -442,23 +577,102 @@ function SearchPage() {
                         </div>
 
                         {/* Bottom Row: Search Input & Action */}
-                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
+                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-start">
                             <div className="w-full flex-1 space-y-2 relative">
-                                <Input
-                                    ref={inputRef}
-                                    className="h-10 sm:h-11 md:h-12 text-base sm:text-lg pr-10"
-                                    placeholder="Enter your search query..."
-                                    value={query}
-                                    onChange={handleQueryChange}
-                                    onFocus={handleQueryFocus}
-                                />
+                                {advancedMode ? (
+                                    /* Advanced JSON editor */
+                                    <div className="relative">
+                                        {/* Query input row inside advanced mode */}
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Input
+                                                ref={inputRef}
+                                                className="h-10 sm:h-11 text-base flex-1"
+                                                placeholder="Enter your search query..."
+                                                value={query}
+                                                onChange={handleQueryChange}
+                                                onFocus={handleQueryFocus}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleAdvancedToggle}
+                                                title="Exit advanced search"
+                                                className="flex-shrink-0 h-10 sm:h-11 w-10 sm:w-11 flex items-center justify-center rounded-md border-2 border-indigo-400 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        {/* JSON editor area */}
+                                        <div className="relative">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-xs font-medium text-indigo-600 flex items-center gap-1">
+                                                    <Braces className="w-3 h-3" />
+                                                    Advance Search
+                                                </span>
+                                                {jsonError && (
+                                                    <span className="text-xs text-red-500 flex items-center gap-1">
+                                                        <AlertCircle className="w-3 h-3" />
+                                                        {jsonError}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <textarea
+                                                ref={jsonEditorRef}
+                                                className={cn(
+                                                    'w-full rounded-md border px-3 py-2 text-sm font-mono',
+                                                    'overflow-hidden focus:outline-none focus:ring-2',
+                                                    jsonError
+                                                        ? 'border-red-300 focus:ring-red-400'
+                                                        : 'border-indigo-200 focus:ring-indigo-400',
+                                                    'bg-white'
+                                                )}
+                                                value={advancedJson}
+                                                onChange={handleJsonChange}
+                                                spellCheck={false}
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* Normal query input with advanced toggle */
+                                    <div className="relative flex items-center">
+                                        <Input
+                                            ref={inputRef}
+                                            className="h-10 sm:h-11 md:h-12 text-base sm:text-lg pr-10"
+                                            placeholder="Enter your search query..."
+                                            value={query}
+                                            onChange={handleQueryChange}
+                                            onFocus={handleQueryFocus}
+                                        />
+                                        {/* Advanced search toggle button inside input */}
+                                        <button
+                                            type="button"
+                                            onClick={handleAdvancedToggle}
+                                            title="Advanced search (JSON parameters)"
+                                            className={cn(
+                                                'absolute right-2 top-1/2 -translate-y-1/2',
+                                                'w-7 h-7 flex items-center justify-center rounded',
+                                                'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50',
+                                                'transition-colors'
+                                            )}
+                                        >
+                                            <Braces className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             <Button
                                 type="submit"
                                 size="lg"
-                                className="h-10 sm:h-11 md:h-12 px-6 sm:px-8 flex-shrink-0 w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
-                                disabled={loading}
+                                className={cn(
+                                    'px-6 sm:px-8 flex-shrink-0 w-full sm:w-auto',
+                                    'bg-gradient-to-r from-blue-600 to-indigo-600',
+                                    'hover:from-blue-700 hover:to-indigo-700',
+                                    'shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200',
+                                    advancedMode
+                                        ? 'h-10 sm:h-11 self-start'
+                                        : 'h-10 sm:h-11 md:h-12'
+                                )}
+                                disabled={loading || (advancedMode && !!jsonError)}
                             >
                                 {loading ? (
                                     <Loader2 className="w-4 sm:w-5 h-4 sm:h-5 animate-spin mr-2" />

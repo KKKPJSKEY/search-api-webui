@@ -12,8 +12,8 @@ Python WebUI with native Mac/Windows/Android Apps for testing, comparing, and vi
   - [Tavily.com](https://docs.tavily.com/documentation/api-reference/introduction)
   - [Exa.ai](https://docs.exa.ai/reference/search)
   - [Parallel.ai](https://docs.parallel.ai/api-reference/search-beta/search)
-  - [Baidu.com](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/4lilb2lpf)
-  - [Brave.com](https://api-dashboard.search.brave.com/documentation)
+  - [Baidu.com](https://cloud.baidu.com/doc/qianfan/s/2mh4su4uy)
+  - [Brave.com](https://api-dashboard.search.brave.com/api-reference/web/search/get)
   - [Serper.dev](https://serper.dev)
   - You can add more generic Search APIs via configuration
 * **SearchAPIWebUI Arena**: Compare two search providers side-by-side to benchmark latency, response size, and result relevance.
