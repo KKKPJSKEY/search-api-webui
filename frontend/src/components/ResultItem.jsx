@@ -208,54 +208,46 @@ export function ResultItem({ item, compact = false, watermark = null }) {
         setExpanded(!expanded);
     };
 
-    // Handle link click to open in external browser
+    // Check if running in Android WebView environment
+    const openInAndroidApp = navigator.userAgent.includes('SearchAPIWebUI-Android');
+
+    // Handle link click to open in external browser (Android only)
     const handleLinkClick = async (e) => {
         e.preventDefault();
         const url = item.url;
 
-        // Check if running in Android WebView environment
-        const openInAndroidApp = (() => {
-            const ua = navigator.userAgent;
-            return ua.includes('SearchAPIWebUI-Android');
-        })();
+        try {
+            // Add timeout control (5 seconds)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-        if (openInAndroidApp) {
-            try {
-                // Add timeout control (5 seconds)
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const response = await fetch('/api/browser-open', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({url}),
+                signal: controller.signal
+            });
 
-                const response = await fetch('/api/browser-open', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url}),
-                    signal: controller.signal
-                });
+            clearTimeout(timeoutId);
 
-                clearTimeout(timeoutId);
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    console.error('[ResultItem] API failed:', error);
-                    alert('Failed to open external browser');
-                    return;
-                }
-
-                console.log('[ResultItem] Successfully opened in external browser');
-
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    console.error('[ResultItem] Request timeout');
-                    alert('Request timeout');
-                } else {
-                    console.error('[ResultItem] Error calling API:', error);
-                    alert('Network error');
-                }
-                // Don't fallback - WebView can't open external links via window.open
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('[ResultItem] API failed:', error);
+                alert('Failed to open external browser');
+                return;
             }
-        } else {
-            // Regular browser: Open in new tab
-            window.open(url, '_blank', 'noopener,noreferrer');
+
+            console.log('[ResultItem] Successfully opened in external browser');
+
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.error('[ResultItem] Request timeout');
+                alert('Request timeout');
+            } else {
+                console.error('[ResultItem] Error calling API:', error);
+                alert('Network error');
+            }
+            // Don't fallback - WebView can't open external links via window.open
         }
     };
 
@@ -285,7 +277,10 @@ export function ResultItem({ item, compact = false, watermark = null }) {
                 <a
                     href={item.url}
                     title={item.url}
-                    onClick={handleLinkClick}
+                    {...(openInAndroidApp
+                        ? { onClick: handleLinkClick }
+                        : { target: '_blank', rel: 'noopener noreferrer' }
+                    )}
                     className="flex items-start justify-between gap-2"
                 >
                     <h3 className={cn(
