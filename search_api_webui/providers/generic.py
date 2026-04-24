@@ -111,7 +111,7 @@ class GenericProvider(BaseProvider):
         if url != self._last_url or not self._connection_ready:
             try:
                 # Verify connection using HEAD request (no response body)
-                self.session.head(url, headers=headers, timeout=5)
+                self.session.head(url, headers=headers, timeout=2)
                 self._connection_ready = True
                 self._last_url = url
                 logger.debug('[Connection Pool] Connected to: %s', url)
@@ -220,27 +220,40 @@ class GenericProvider(BaseProvider):
         if status_callback:
             status_callback('searching', 'Searching...')
 
-        try:
-            req_args = {'headers': headers, 'timeout': 30}
-            if params:
-                req_args['params'] = params
-            if json_body:
-                req_args['json'] = json_body
+        req_args = {'headers': headers, 'timeout': 6}
+        if params:
+            req_args['params'] = params
+        if json_body:
+            req_args['json'] = json_body
 
-            logger.debug('FULL_REQUEST: %s', req_args)
-            # Use Session to send request (connection is reused)
-            start_time = time.time()
-            if method.upper() == 'GET':
-                response = self.session.get(url, **req_args)
-            else:
-                response = self.session.post(url, **req_args)
-            end_time = time.time()
+        logger.debug('FULL_REQUEST: %s', req_args)
 
-            response.raise_for_status()
-        except Exception as e:
-            logger.error('Request Error: %s', e, f"args: {req_args}")
+        max_attempts = 3  # 1 initial + 2 retries
+        last_error = None
+        start_time = end_time = time.time()
+        for attempt in range(max_attempts):
+            if attempt > 0:
+                logger.warning('Retrying request (attempt %d/%d): %s', attempt + 1, max_attempts, url)
+                if status_callback:
+                    status_callback('searching', f'Retrying... ({attempt}/{max_attempts - 1})')
+            try:
+                start_time = time.time()
+                if method.upper() == 'GET':
+                    response = self.session.get(url, **req_args)
+                else:
+                    response = self.session.post(url, **req_args)
+                end_time = time.time()
+                response.raise_for_status()
+                last_error = None
+                break
+            except Exception as e:
+                end_time = time.time()
+                last_error = e
+                logger.error('Request Error (attempt %d/%d): %s', attempt + 1, max_attempts, e)
+
+        if last_error is not None:
             return {
-                'error': str(e),
+                'error': str(last_error),
                 'results': [],
                 'metrics': {'latency_ms': 0, 'server_latency_ms': None, 'size_bytes': 0},
             }
