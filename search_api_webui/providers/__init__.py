@@ -52,3 +52,30 @@ def load_providers(file_path='providers.yaml'):
         providers[name] = GenericProvider(conf)
 
     return providers
+
+
+def load_custom_providers(custom_config):
+    '''
+    Instantiates GenericProvider instances from custom provider definitions.
+
+    Args:
+        custom_config (dict): A dictionary mapping provider names to their
+            configuration dicts, typically read from config.json under the
+            'custom_providers' key.
+
+    Returns:
+        dict: A dictionary mapping provider names to their initialized instances.
+    '''
+    if not custom_config:
+        return {}
+
+    providers = {}
+    for name, conf in custom_config.items():
+        conf = dict(conf)  # shallow copy to avoid mutating stored config
+        conf['name'] = name
+        try:
+            providers[name] = GenericProvider(conf)
+        except Exception as e:
+            logger.warning(f'Failed to load custom provider "{name}": {e}')
+
+    return providers

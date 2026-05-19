@@ -316,7 +316,7 @@ function ArenaColumn({ side, providers, selected, onSelect, result, opponentResu
                         onChange={(e) => onSelect(e.target.value)}
                     >
                         {providers.map((p) => (
-                            <option key={p.name} value={p.name}>{p.name}</option>
+                            <option key={p.name} value={p.name}>{p.name}{p.is_custom ? ' (Custom)' : ''}</option>
                         ))}
                     </select>
                 </div>

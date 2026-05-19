@@ -34,7 +34,7 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 
-from search_api_webui.providers import load_providers
+from search_api_webui.providers import load_custom_providers, load_providers
 
 try:
     import webview
@@ -132,12 +132,6 @@ SEARCH_HISTORY_JSON = USER_CONFIG_DIR / 'search_history.json'
 if not USER_CONFIG_DIR.exists():
     USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-if PROVIDERS_YAML.exists():
-    provider_map = load_providers(str(PROVIDERS_YAML))
-else:
-    logger.error(f'Configuration file not found at {PROVIDERS_YAML}')
-    provider_map = {}
-
 
 def get_stored_config():
     if not USER_CONFIG_JSON.exists():
@@ -156,6 +150,36 @@ def save_stored_config(config_dict):
             json.dump(config_dict, f, indent=2)
     except Exception as e:
         logger.error(f'Error saving config: {e}')
+
+
+if PROVIDERS_YAML.exists():
+    provider_map = load_providers(str(PROVIDERS_YAML))
+else:
+    logger.error(f'Configuration file not found at {PROVIDERS_YAML}')
+    provider_map = {}
+
+BUILTIN_PROVIDER_NAMES = set(provider_map.keys())
+
+# Load custom providers from user config at startup
+_initial_config = get_stored_config()
+_initial_custom = _initial_config.get('custom_providers', {})
+if _initial_custom:
+    provider_map.update(load_custom_providers(_initial_custom))
+
+
+def reload_custom_providers():
+    '''Reload custom providers from config.json into the global provider_map.'''
+    stored_config = get_stored_config()
+    custom_defs = stored_config.get('custom_providers', {})
+
+    # Remove stale custom providers (those in provider_map but not built-in and not in current custom defs)
+    stale = [name for name in provider_map if name not in BUILTIN_PROVIDER_NAMES and name not in custom_defs]
+    for name in stale:
+        del provider_map[name]
+
+    # Add/update custom providers
+    new_providers = load_custom_providers(custom_defs)
+    provider_map.update(new_providers)
 
 
 # Maximum number of search history to store
@@ -230,6 +254,7 @@ def get_providers_list():
             {
                 'name': name,
                 'has_key': has_key,
+                'is_custom': name not in BUILTIN_PROVIDER_NAMES,
                 'details': config_details,
                 'user_settings': {
                     'api_url': user_conf.get('api_url', ''),
@@ -342,6 +367,174 @@ def update_config():
         del all_config[provider_name]
 
     save_stored_config(all_config)
+    return jsonify({'status': 'success'})
+
+
+def _validate_custom_provider_name(name):
+    '''Validate a custom provider name. Returns an error string or None.'''
+    import re
+
+    if not name or not name.strip():
+        return 'Provider name is required'
+    name = name.strip()
+    if len(name) > 64:
+        return 'Provider name must be 64 characters or less'
+    if not re.match(r'^[a-zA-Z0-9_-]+$', name):
+        return 'Provider name can only contain letters, numbers, underscores, and hyphens'
+    if name in BUILTIN_PROVIDER_NAMES:
+        return f'"{name}" is a built-in provider name and cannot be used'
+    if name == 'custom_providers':
+        return '"custom_providers" is a reserved name'
+    return None
+
+
+def _get_custom_provider_defaults(method='GET'):
+    '''Return default config values for a new custom provider.'''
+    if method.upper() == 'POST':
+        return {
+            'method': 'POST',
+            'headers': {'Content-Type': 'application/json'},
+            'params': {},
+            'payload': {'query': '{query}', 'count': '{limit}'},
+            'advanced_params_tpl': {},
+            'advanced_payload_tpl': {},
+            'response_mapping': {
+                'root_path': '@',
+                'fields': {'url': 'url', 'title': 'title'},
+            },
+        }
+    return {
+        'method': 'GET',
+        'headers': {},
+        'params': {'q': '{query}', 'count': '{limit}'},
+        'payload': {},
+        'advanced_params_tpl': {},
+        'advanced_payload_tpl': {},
+        'response_mapping': {
+            'root_path': '@',
+            'fields': {'url': 'url', 'title': 'title'},
+        },
+    }
+
+
+@app.route('/api/custom-providers', methods=['POST'])
+def create_custom_provider():
+    data = request.json
+    name = (data.get('name') or '').strip()
+    url = (data.get('url') or '').strip()
+    method = (data.get('method') or 'GET').strip().upper()
+
+    # Validate name
+    name_error = _validate_custom_provider_name(name)
+    if name_error:
+        return jsonify({'error': name_error}), 400
+
+    # Validate URL
+    if not url:
+        return jsonify({'error': 'API URL is required'}), 400
+    if not url.startswith(('http://', 'https://')):
+        return jsonify({'error': 'API URL must start with http:// or https://'}), 400
+
+    # Validate method
+    if method not in ('GET', 'POST'):
+        return jsonify({'error': 'Method must be GET or POST'}), 400
+
+    all_config = get_stored_config()
+    custom_providers = all_config.get('custom_providers', {})
+
+    if name in custom_providers:
+        return jsonify({'error': f'Custom provider "{name}" already exists'}), 409
+
+    # Build provider config with defaults
+    defaults = _get_custom_provider_defaults(method)
+    provider_config = {
+        'url': url,
+        'method': method,
+        'headers': data.get('headers', defaults['headers']),
+        'params': data.get('params', defaults['params']),
+        'payload': data.get('payload', defaults['payload']),
+        'response_mapping': data.get('response_mapping', defaults['response_mapping']),
+    }
+
+    # Optional fields
+    if data.get('advanced_params_tpl'):
+        provider_config['advanced_params_tpl'] = data['advanced_params_tpl']
+    if data.get('advanced_payload_tpl'):
+        provider_config['advanced_payload_tpl'] = data['advanced_payload_tpl']
+
+    custom_providers[name] = provider_config
+    all_config['custom_providers'] = custom_providers
+    save_stored_config(all_config)
+    reload_custom_providers()
+
+    return jsonify({'status': 'success', 'provider': provider_config}), 201
+
+
+@app.route('/api/custom-providers/<name>', methods=['PUT'])
+def update_custom_provider(name):
+    data = request.json
+
+    all_config = get_stored_config()
+    custom_providers = all_config.get('custom_providers', {})
+
+    if name not in custom_providers:
+        return jsonify({'error': f'Custom provider "{name}" not found'}), 404
+
+    existing = custom_providers[name]
+
+    # Update URL if provided
+    url = data.get('url')
+    if url is not None:
+        url = url.strip()
+        if not url:
+            return jsonify({'error': 'API URL is required'}), 400
+        if not url.startswith(('http://', 'https://')):
+            return jsonify({'error': 'API URL must start with http:// or https://'}), 400
+        existing['url'] = url
+
+    # Update method if provided
+    method = data.get('method')
+    if method is not None:
+        method = method.strip().upper()
+        if method not in ('GET', 'POST'):
+            return jsonify({'error': 'Method must be GET or POST'}), 400
+        existing['method'] = method
+
+    # Update optional fields if provided
+    for field in ('headers', 'params', 'payload', 'response_mapping', 'advanced_params_tpl', 'advanced_payload_tpl'):
+        if field in data:
+            existing[field] = data[field]
+
+    custom_providers[name] = existing
+    all_config['custom_providers'] = custom_providers
+    save_stored_config(all_config)
+    reload_custom_providers()
+
+    return jsonify({'status': 'success', 'provider': existing})
+
+
+@app.route('/api/custom-providers/<name>', methods=['DELETE'])
+def delete_custom_provider(name):
+    all_config = get_stored_config()
+    custom_providers = all_config.get('custom_providers', {})
+
+    if name not in custom_providers:
+        return jsonify({'error': f'Custom provider "{name}" not found'}), 404
+
+    # Remove the custom provider definition
+    del custom_providers[name]
+    if custom_providers:
+        all_config['custom_providers'] = custom_providers
+    else:
+        del all_config['custom_providers']
+
+    # Remove per-provider settings (api_key, etc.), but not the custom_providers key itself
+    if name in all_config and name != 'custom_providers':
+        del all_config[name]
+
+    save_stored_config(all_config)
+    reload_custom_providers()
+
     return jsonify({'status': 'success'})
 
 

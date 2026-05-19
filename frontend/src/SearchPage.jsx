@@ -538,7 +538,7 @@ function SearchPage() {
                                     >
                                         {providers.map((p) => (
                                             <option key={p.name} value={p.name}>
-                                                {p.name}
+                                                {p.name}{p.is_custom ? ' (Custom)' : ''}
                                             </option>
                                         ))}
                                     </select>
