@@ -268,8 +268,24 @@ class GenericProvider(BaseProvider):
         logger.debug('FULL_RESPONSE: %s', raw_data)
 
         mapping = self.config.get('response_mapping', {})
-        # Use JMESPath to find the list of results
-        root_list = jmespath.search(mapping.get('root_path', '@'), raw_data) or []
+        root_path = mapping.get('root_path', '@')
+        root_list = jmespath.search(root_path, raw_data)
+
+        # If root_path is configured but not found in response, report an error
+        if root_list is None and root_path != '@':
+            logger.error('Search results root_path "%s" not found in API response', root_path)
+            return {
+                'error': f'root_path "{root_path}" not found in API response',
+                'results': [],
+                'metrics': {
+                    'latency_ms': round((end_time - start_time) * 1000, 2),
+                    'server_latency_ms': None,
+                    'size_bytes': len(response.content),
+                },
+            }
+
+        if not isinstance(root_list, list):
+            root_list = [root_list] if root_list else []
 
         normalized_results = []
         field_map = mapping.get('fields', {})

@@ -216,3 +216,33 @@ serper:
     fields:
       url: "link"
       title: "title"
+
+anysearch:
+  url: "https://api.anysearch.com/v1/search"
+  method: "POST"
+  headers:
+    "Accept": "application/json"
+    "Authorization": "Bearer {api_key}"
+    "Content-Type": "application/json"
+  payload:
+    query: "{query}"
+    max_results: "{limit}"
+  advanced_payload_tpl:
+    max_results: 10
+    domains: []
+    tags: []
+    content_types: []
+    zone: ""
+    language: ""
+    providers: []
+    constraint:
+      freshness: ""
+      from: ""
+      to: ""
+  response_mapping:
+    root_path: "data.results"
+    server_latency_path: "data.metadata.search_time_ms"
+    fields:
+      url: "url"
+      title: "title"
+      page_age: "published_at"
