@@ -22,7 +22,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Key, Save, Server, Code, Trash2, Settings2, AlertCircle, CheckCircle2, PlusCircle, Pencil } from 'lucide-react';
+import { ArrowLeft, Key, Save, Server, Code, Trash2, Settings2, AlertCircle, CheckCircle2, PlusCircle, Pencil, ExternalLink } from 'lucide-react';
 import { Button } from './components/Button';
 import { Input } from './components/Input';
 import { Card } from './components/Card';
@@ -406,6 +406,17 @@ function ConfigPage() {
                                     <label className="text-sm font-medium flex items-center gap-2 text-gray-700">
                                         <Key className="w-4 h-4" />
                                         API Key
+                                        {selectedProvider?.api_key_url && (
+                                            <a
+                                                href={selectedProvider.api_key_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 text-xs font-normal text-blue-600 hover:text-blue-800 hover:underline ml-1"
+                                            >
+                                                Get Your API Key
+                                                <ExternalLink className="w-3 h-3" />
+                                            </a>
+                                        )}
                                     </label>
 
                                     {hasKey ? (

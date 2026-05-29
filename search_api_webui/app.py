@@ -255,6 +255,7 @@ def get_providers_list():
                 'name': name,
                 'has_key': has_key,
                 'is_custom': name not in BUILTIN_PROVIDER_NAMES,
+                'api_key_url': config_details.get('api_key_url', ''),
                 'details': config_details,
                 'user_settings': {
                     'api_url': user_conf.get('api_url', ''),

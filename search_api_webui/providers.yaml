@@ -1,5 +1,6 @@
 querit:
   url: "https://api.querit.ai/v1/search"
+  api_key_url: "https://www.querit.ai/en/dashboard/api-keys"
   method: "POST"
   headers:
     "Accept": "application/json"
@@ -33,6 +34,7 @@ querit:
 
 you:
   url: "https://ydc-index.io/v1/search"
+  api_key_url: "https://you.com/platform"
   method: "GET"
   headers:
     X-API-Key: "{api_key}"
@@ -61,6 +63,7 @@ you:
 
 tavily:
   url: "https://api.tavily.com/search"
+  api_key_url: "https://app.tavily.com"
   method: "POST"
   headers:
     "Accept": "application/json"
@@ -93,6 +96,7 @@ tavily:
 
 exa:
   url: "https://api.exa.ai/search"
+  api_key_url: "https://dashboard.exa.ai"
   method: "POST"
   headers:
     "Content-Type": "application/json"
@@ -122,6 +126,7 @@ exa:
 
 parallel:
   url: "https://api.parallel.ai/v1beta/search"
+  api_key_url: "https://platform.parallel.ai/settings?tab=api-keys"
   method: "POST"
   headers:
     "Content-Type": "application/json"
@@ -143,6 +148,7 @@ parallel:
 
 baidu:
   url: "https://qianfan.baidubce.com/v2/ai_search/web_search"
+  api_key_url: "https://console.bce.baidu.com/qianfan/ais/console/apiKey"
   method: "POST"
   headers:
     "Accept": "application/json"
@@ -176,6 +182,7 @@ baidu:
 
 brave:
   url: "https://api.search.brave.com/res/v1/web/search"
+  api_key_url: "https://brave.com/search/api"
   method: "GET"
   headers:
     X-Subscription-Token: "{api_key}"
@@ -201,6 +208,7 @@ brave:
 
 serper:
   url: "https://google.serper.dev/search"
+  api_key_url: "https://serper.dev"
   method: "POST"
   headers:
     "X-API-KEY": "{api_key}"
@@ -219,6 +227,7 @@ serper:
 
 anysearch:
   url: "https://api.anysearch.com/v1/search"
+  api_key_url: "https://anysearch.com"
   method: "POST"
   headers:
     "Accept": "application/json"
