@@ -46,6 +46,7 @@ function ConfigPage() {
     const [useProxy, setUseProxy] = useState(false);
     const [proxyUrl, setProxyUrl] = useState('');
     const [skipWarmup, setSkipWarmup] = useState(false);
+    const [queritVersion, setQueritVersion] = useState('abroad');
 
     const [currentDetails, setCurrentDetails] = useState(null);
     const [currentIsCustom, setCurrentIsCustom] = useState(false);
@@ -110,6 +111,7 @@ function ConfigPage() {
                 setUseProxy(p.user_settings.use_proxy || false);
                 setProxyUrl(p.user_settings.proxy_url || '');
                 setSkipWarmup(p.user_settings.skip_warmup || false);
+                setQueritVersion(p.user_settings.querit_version || 'abroad');
             } else {
                 // Reset to defaults if no config exists
                 setApiUrl('');
@@ -117,6 +119,7 @@ function ConfigPage() {
                 setUseProxy(false);
                 setProxyUrl('');
                 setSkipWarmup(false);
+                setQueritVersion('abroad');
             }
 
             // Always clear API key input when switching/refreshing for security
@@ -146,7 +149,8 @@ function ConfigPage() {
                     limit: limit,
                     use_proxy: useProxy,
                     proxy_url: proxyUrl,
-                    skip_warmup: skipWarmup
+                    skip_warmup: skipWarmup,
+                    querit_version: queritVersion
                 })
             });
             setSaveStatus({ type: 'success', text: 'API Key removed successfully.' });
@@ -174,7 +178,8 @@ function ConfigPage() {
                 limit: limit,
                 use_proxy: useProxy,
                 proxy_url: proxyUrl,
-                skip_warmup: skipWarmup
+                skip_warmup: skipWarmup,
+                querit_version: queritVersion
             };
 
             // If hasKey is true but apiKey is empty, allow updating only advanced settings
@@ -543,6 +548,24 @@ function ConfigPage() {
                                             Disable pre-connection HEAD request. Enable this if using proxy or experiencing timeout issues.
                                         </p>
                                     </div>
+
+                                    {/* Querit Version Settings */}
+                                    {selectedName === 'querit' && (
+                                        <div className="space-y-3 pt-4 border-t border-gray-100">
+                                            <label className="text-xs font-medium text-gray-600">
+                                                Querit Version
+                                            </label>
+                                            <select
+                                                value={queritVersion}
+                                                onChange={(e) => setQueritVersion(e.target.value)}
+                                                className="flex h-10 w-full items-center justify-between rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                            >
+                                                <option value="abroad">Abroad</option>
+                                                <option value="domestic">Domestic</option>
+                                                <option value="all">All</option>
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Save Action */}

@@ -263,6 +263,7 @@ def get_providers_list():
                     'use_proxy': user_conf.get('use_proxy', False),
                     'proxy_url': user_conf.get('proxy_url', ''),
                     'skip_warmup': user_conf.get('skip_warmup', False),
+                    'querit_version': user_conf.get('querit_version', 'abroad'),
                 },
             },
         )
@@ -321,6 +322,7 @@ def update_config():
     use_proxy = data.get('use_proxy', False)
     proxy_url = data.get('proxy_url', '').strip()
     skip_warmup = data.get('skip_warmup', False)
+    querit_version = data.get('querit_version')
 
     all_config = get_stored_config()
 
@@ -353,6 +355,10 @@ def update_config():
         if 'proxy_url' in all_config[provider_name]:
             del all_config[provider_name]['proxy_url']
 
+
+    # Save querit version
+    if provider_name == 'querit' and querit_version:
+        all_config[provider_name]['querit_version'] = querit_version
     # Save warmup settings
     if skip_warmup:
         all_config[provider_name]['skip_warmup'] = True
@@ -557,6 +563,35 @@ def search_api():
 
     if not api_key:
         api_key = provider_config.get('api_key')
+    if provider_name == 'querit':
+        querit_version = data.get('querit_version') or provider_config.get('querit_version', 'abroad')
+        # if querit_version == 'abroad':
+        #     provider_config['api_url'] = 'https://api.querit.ai/v1/search'
+        #     api_key = 'abroad'
+        # elif querit_version == 'domestic':
+        #     provider_config['api_url'] = 'http://searchapis.sdns.baidu.com/v1/search'
+        #     api_key = 'domestic'
+        # elif querit_version == 'all':
+        #     provider_config['api_url'] = 'http://searchapis.sdns.baidu.com/v1/search'
+        #     api_key = 'all'
+
+    logger.info("kkk1 provider_config['api_url']={}, api_key={}".format(provider_config['api_url'],api_key))
+
+
+
+    # Intervene in extra_json for complianceScene based on querit_version
+    if provider_name == 'querit':
+        if extra_json is None:
+            extra_json = {}
+        if 'filters' not in extra_json:
+            extra_json['filters'] = {}
+            
+        if querit_version == 'domestic':
+            extra_json['filters']['complianceScene'] = 'domestic'
+        elif querit_version == 'all':
+            extra_json['filters']['complianceScene'] = 'all'
+        elif querit_version == 'abroad':
+            extra_json['filters'].pop('complianceScene', None)
 
     if not api_key:
         return (

@@ -27,3 +27,10 @@
 body {
     @apply bg-gray-50 text-gray-900;
 }
+
+/* react-day-picker overrides to match Tailwind look */
+.rdp-root {
+    --rdp-accent-color: #4f46e5;
+    --rdp-accent-background-color: #eef2ff;
+    font-size: 0.875rem;
+}

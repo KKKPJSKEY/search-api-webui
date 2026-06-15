@@ -43,6 +43,7 @@ import { Input } from './components/Input';
 import { Card } from './components/Card';
 import { Badge } from './components/Badge';
 import { ResultItem } from './components/ResultItem';
+import { QueritAdvancedForm, normalizeQueritPayload } from './components/QueritAdvancedForm';
 import { cn } from './lib/utils';
 import { addToEngineHistory } from './utils/engineHistory';
 
@@ -109,6 +110,7 @@ function SearchPage() {
     // State Management
     const [providers, setProviders] = useState([]);
     const [selectedProvider, setSelectedProvider] = useState('');
+    const [queritVersion, setQueritVersion] = useState('abroad');
     const [hasKey, setHasKey] = useState(false);
 
     const [query, setQuery] = useState('');
@@ -138,10 +140,13 @@ function SearchPage() {
             .then((res) => res.json())
             .then((data) => {
                 setProviders(data);
-                // Check if there's a provider parameter in URL
-                const providerFromUrl = searchParams.get('provider');
-                if (providerFromUrl && data.find(p => p.name === providerFromUrl)) {
-                    setSelectedProvider(providerFromUrl);
+                // Force querit as the only selectable provider on init.
+                const queritProvider = data.find(p => p.name === 'querit');
+                if (queritProvider) {
+                    setSelectedProvider('querit');
+                    if (queritProvider.user_settings && queritProvider.user_settings.querit_version) {
+                        setQueritVersion(queritProvider.user_settings.querit_version);
+                    }
                 } else if (data.length > 0) {
                     setSelectedProvider(data[0].name);
                 }
@@ -171,6 +176,20 @@ function SearchPage() {
             }
         }
     }, [selectedProvider, advancedMode, providers]);
+
+    // For querit, keep advancedJson initialized with the template so the always-visible
+    // form has data to bind to even when advanced mode is off.
+    useEffect(() => {
+        if (selectedProvider !== 'querit' || providers.length === 0) return;
+        if (skipTemplateLoadRef.current) return;
+        const p = providers.find((item) => item.name === selectedProvider);
+        if (!p) return;
+        // Only seed when advancedJson is still the default empty object.
+        if (advancedJson.trim() === '{}' || advancedJson.trim() === '') {
+            setAdvancedJson(JSON.stringify(buildAdvancedJson(p), null, 2));
+            setJsonError(null);
+        }
+    }, [selectedProvider, providers]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Auto-resize textarea to fit content whenever advancedJson changes or advanced mode is toggled
     useEffect(() => {
@@ -335,7 +354,9 @@ function SearchPage() {
 
         // Validate JSON in advanced mode before submitting
         let parsedExtra = null;
-        if (advancedMode) {
+        const queritFormActive = selectedProvider === 'querit';
+        const useExtraJson = advancedMode || queritFormActive;
+        if (useExtraJson) {
             try {
                 parsedExtra = JSON.parse(advancedJson);
             } catch {
@@ -345,8 +366,11 @@ function SearchPage() {
         }
 
         // Save to search history (non-critical, ignore failures)
+        // Only mark as "advanced" when the user explicitly opened the JSON editor;
+        // the always-visible querit form should not flip future history clicks
+        // into advanced mode.
         try {
-            await addSearchHistory(query.trim(), advancedMode, parsedExtra);
+            await addSearchHistory(query.trim(), advancedMode, advancedMode ? parsedExtra : null);
             setSearchHistory(await fetchSearchHistory());
         } catch {
             // History API failures should not block search
@@ -366,7 +390,10 @@ function SearchPage() {
                 provider: selectedProvider,
                 stream: true,
             };
-            if (advancedMode && parsedExtra) {
+            if (selectedProvider === 'querit') {
+                body.querit_version = queritVersion;
+            }
+            if (useExtraJson && parsedExtra) {
                 body.extra_json = parsedExtra;
             }
 
@@ -509,7 +536,7 @@ function SearchPage() {
                 })()}
 
                 {/* Control Panel */}
-                <Card className="p-4 sm:p-5 md:p-6 shadow-lg hover:shadow-xl transition-shadow duration-300 border-0 ring-1 ring-gray-200/50 backdrop-blur-sm overflow-visible">
+                <Card className="relative z-40 p-4 sm:p-5 md:p-6 shadow-lg hover:shadow-xl transition-shadow duration-300 border-0 ring-1 ring-gray-200/50 backdrop-blur-sm overflow-visible">
                     <form onSubmit={handleSearch} className="space-y-4 sm:space-y-5 md:space-y-6">
 
                         {/* Top Row: Engine Selection & Status/Config */}
@@ -535,6 +562,7 @@ function SearchPage() {
                                         )}
                                         value={selectedProvider}
                                         onChange={handleProviderChange}
+                                        disabled
                                     >
                                         {providers.map((p) => (
                                             <option key={p.name} value={p.name}>
@@ -549,6 +577,34 @@ function SearchPage() {
                                         )}
                                     />
                                 </div>
+                                {selectedProvider === 'querit' && (
+                                    <div className="relative min-w-0 flex-[0.5] max-w-[120px]">
+                                        <select
+                                            className={cn(
+                                                'flex h-10 w-full items-center',
+                                                'justify-between rounded-md border',
+                                                'border-gray-200 bg-white px-3 py-2',
+                                                'text-sm ring-offset-background',
+                                                'placeholder:text-gray-500',
+                                                'focus:outline-none focus:ring-2',
+                                                'focus:ring-blue-600',
+                                                'appearance-none'
+                                            )}
+                                            value={queritVersion}
+                                            onChange={(e) => setQueritVersion(e.target.value)}
+                                        >
+                                            <option value="abroad">abroad</option>
+                                            <option value="domestic">domestic</option>
+                                            <option value="all">all</option>
+                                        </select>
+                                        <ChevronDown
+                                            className={cn(
+                                                'absolute right-3 top-2.5 h-4 w-4',
+                                                'opacity-50 pointer-events-none'
+                                            )}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Right: Status Pill + Arena + Config Button */}
@@ -572,17 +628,19 @@ function SearchPage() {
                                     <span>{hasKey ? 'Ready' : 'No API Key'}</span>
                                 </div>
 
-                                {/* Arena Button */}
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={handleArenaClick}
-                                    title="Enter SearchAPIWebUI Arena"
-                                    className="h-9 w-9 border-2 border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 hover:border-purple-400 hover:scale-105 transition-transform duration-200 flex-shrink-0 shadow-sm"
-                                >
-                                    <Swords className="w-4 h-4" />
-                                </Button>
+                                {/* Arena Button (hidden) */}
+                                {false && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={handleArenaClick}
+                                        title="Enter SearchAPIWebUI Arena"
+                                        className="h-9 w-9 border-2 border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 hover:border-purple-400 hover:scale-105 transition-transform duration-200 flex-shrink-0 shadow-sm"
+                                    >
+                                        <Swords className="w-4 h-4" />
+                                    </Button>
+                                )}
 
                                 {/* Config Button */}
                                 <Button
@@ -704,6 +762,38 @@ function SearchPage() {
                                 {loading ? (statusMessage || 'Searching...') : 'Search'}
                             </Button>
                         </div>
+
+                        {/* Querit-only: always-visible structured form bound to advancedJson */}
+                        {selectedProvider === 'querit' && (
+                            <QueritAdvancedForm
+                                value={(() => {
+                                    try {
+                                        return normalizeQueritPayload(JSON.parse(advancedJson));
+                                    } catch {
+                                        return normalizeQueritPayload({});
+                                    }
+                                })()}
+                                onChange={(newVal) => {
+                                    let base = {};
+                                    try {
+                                        const parsed = JSON.parse(advancedJson);
+                                        if (parsed && typeof parsed === 'object') base = parsed;
+                                    } catch {
+                                        // keep empty base
+                                    }
+                                    const merged = {
+                                        ...base,
+                                        ...newVal,
+                                        filters: {
+                                            ...(base.filters || {}),
+                                            ...newVal.filters,
+                                        },
+                                    };
+                                    setAdvancedJson(JSON.stringify(merged, null, 2));
+                                    setJsonError(null);
+                                }}
+                            />
+                        )}
                     </form>
                 </Card>
 
@@ -771,9 +861,24 @@ function SearchPage() {
                         {/* Result List */}
                         {results.length > 0 ? (
                             <div className="grid gap-3 sm:gap-4">
-                                {results.map((item, idx) => (
-                                    <ResultItem key={item.url || idx} item={item} watermark={selectedProvider} />
-                                ))}
+                                {(() => {
+                                    let maxChunks = null;
+                                    if (selectedProvider === 'querit') {
+                                        try {
+                                            const parsed = JSON.parse(advancedJson);
+                                            const n = Number(parsed?.chunksPerDoc);
+                                            if (Number.isFinite(n) && n > 0) maxChunks = n;
+                                        } catch { /* ignore */ }
+                                    }
+                                    return results.map((item, idx) => (
+                                        <ResultItem
+                                            key={item.url || idx}
+                                            item={item}
+                                            watermark={selectedProvider}
+                                            maxChunks={maxChunks}
+                                        />
+                                    ));
+                                })()}
                             </div>
                         ) : (
                             <div

@@ -267,6 +267,17 @@ class GenericProvider(BaseProvider):
 
         logger.debug('FULL_RESPONSE: %s', raw_data)
 
+        # Verbose dump for debugging chunk/structure issues (e.g. querit chunksPerDoc)
+        # provider_name = self.config.get('name', '')
+        # if provider_name == 'querit' and os.environ.get('SEARCH_API_DEBUG_RESPONSE'):
+        #     import json as _json
+        #     try:
+        #         logger.info('[%s] FULL_RESPONSE_JSON:\n%s',
+        #                     provider_name,
+        #                     _json.dumps(raw_data, ensure_ascii=False, indent=2))
+        #     except Exception:
+        #         logger.info('[%s] FULL_RESPONSE_RAW: %s', provider_name, raw_data)
+
         mapping = self.config.get('response_mapping', {})
         root_path = mapping.get('root_path', '@')
         root_list = jmespath.search(root_path, raw_data)
@@ -290,7 +301,7 @@ class GenericProvider(BaseProvider):
         normalized_results = []
         field_map = mapping.get('fields', {})
         # Define common fields that should be extracted as-is
-        common_fields = {'title', 'url', 'site_name', 'site_icon', 'page_age'}
+        common_fields = {'title', 'url', 'site_name', 'site_icon', 'page_age', 'snippet'}
 
         # Collect all JMESPath source paths that are already mapped
         mapped_paths = set(field_map.values())
@@ -319,10 +330,14 @@ class GenericProvider(BaseProvider):
                     if key not in mapped_paths and value is not None:
                         snippet_fields[key] = value
 
-            # Store snippet fields as JSON structure in snippet
-            if snippet_fields:
-                entry['snippet'] = snippet_fields
-            else:
+            # Store snippet fields as JSON structure in snippet,
+            # but only if snippet is not explicitly mapped in field_map.
+            if 'snippet' not in field_map:
+                if snippet_fields:
+                    entry['snippet'] = snippet_fields
+                else:
+                    entry['snippet'] = ''
+            elif 'snippet' not in entry:
                 entry['snippet'] = ''
             normalized_results.append(entry)
 

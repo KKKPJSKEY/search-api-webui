@@ -94,7 +94,7 @@ function formatPageAge(dateStr) {
  * @param {string} key - Key name
  * @returns {JSX.Element} Rendered value
  */
-function renderNestedValue(value, key) {
+function renderNestedValue(value, key, maxChunks = null) {
     // Handle null/undefined
     if (value === null || value === undefined) {
         return <span className="text-gray-400">null</span>;
@@ -136,7 +136,7 @@ function renderNestedValue(value, key) {
                 {Object.entries(value).map(([k, v]) => (
                     <div key={k}>
                         <span className="font-semibold text-gray-600">{k}:</span>{' '}
-                        {renderNestedValue(v, k)}
+                        {renderNestedValue(v, k, maxChunks)}
                     </div>
                 ))}
             </div>
@@ -176,16 +176,60 @@ function renderNestedValue(value, key) {
         );
     }
 
+    // Handle strings containing the `[...]` chunk separator → numbered blocks
+    if (typeof value === 'string' && value.includes('[...]')) {
+        let chunks = value.split('[...]').map(s => s.trim()).filter(Boolean);
+        if (chunks.length > 1) {
+            // Cap by maxChunks (e.g. user-selected chunksPerDoc); drop extras silently.
+            if (Number.isFinite(maxChunks) && maxChunks > 0 && chunks.length > maxChunks) {
+                chunks = chunks.slice(0, maxChunks);
+            }
+            return (
+                <div className="ml-2 mt-1 space-y-2">
+                    {chunks.map((chunk, idx) => (
+                        <div
+                            key={idx}
+                            className="border-l-2 border-indigo-300 pl-3 py-1 bg-indigo-50/40 rounded-r whitespace-pre-wrap"
+                        >
+                            <span className="text-xs font-bold text-indigo-700 mr-1">{idx + 1}.</span>
+                            {chunk}
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+    }
+
     // Handle primitive values
     return <span>{String(value)}</span>;
 }
 
-export function ResultItem({ item, compact = false, watermark = null }) {
+/**
+ * Split a snippet string by the literal `[...]` delimiter into chunks.
+ * Returns an array of trimmed non-empty chunks. If only one chunk exists,
+ * caller can render inline; multiple chunks should render as numbered blocks.
+ */
+function splitSnippetChunks(str) {
+    if (typeof str !== 'string' || !str) return [];
+    return str
+        .split('[...]')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+}
+
+export function ResultItem({ item, compact = false, watermark = null, maxChunks = null }) {
     const [expanded, setExpanded] = useState(false);
 
     // Handle snippet: can be string or object
     const snippetData = item.snippet || '';
     const isJsonSnippet = typeof snippetData === 'object' && snippetData !== null;
+
+    // For string snippets, split by `[...]` separator into chunks (querit chunksPerDoc>1)
+    let stringChunks = !isJsonSnippet ? splitSnippetChunks(snippetData) : [];
+    if (Number.isFinite(maxChunks) && maxChunks > 0 && stringChunks.length > maxChunks) {
+        stringChunks = stringChunks.slice(0, maxChunks);
+    }
+    const hasMultipleChunks = stringChunks.length > 1;
 
     // Convert snippet to display string
     let displayString = '';
@@ -331,9 +375,19 @@ export function ResultItem({ item, compact = false, watermark = null }) {
 
                                     for (const [key, value] of entries) {
                                         // Format value for display
-                                        const displayValue = Array.isArray(value)
-                                            ? value.join(', ')
-                                            : String(value);
+                                        let displayValue;
+                                        if (Array.isArray(value)) {
+                                            const allPrimitive = value.every(
+                                                v => v === null || ['string', 'number', 'boolean'].includes(typeof v)
+                                            );
+                                            displayValue = allPrimitive
+                                                ? value.join(', ')
+                                                : `[${value.length} items]`;
+                                        } else if (value && typeof value === 'object') {
+                                            displayValue = '{...}';
+                                        } else {
+                                            displayValue = String(value);
+                                        }
                                         const entryText = `${key}: ${displayValue}\n`;
 
                                         if (charCount + entryText.length > LIMIT) {
@@ -372,14 +426,53 @@ export function ResultItem({ item, compact = false, watermark = null }) {
                         ) : (
                             // For plain text snippets, simple truncation
                             <>
-                                {displayString.substring(0, LIMIT)}
-                                <span>... </span>
-                                <button
-                                    onClick={toggleExpand}
-                                    className="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-0.5 text-xs"
-                                >
-                                    Expand <ChevronDown className="w-3 h-3" />
-                                </button>
+                                {hasMultipleChunks ? (
+                                    <div className="space-y-2">
+                                        {(() => {
+                                            const blocks = [];
+                                            let charCount = 0;
+                                            for (let i = 0; i < stringChunks.length; i++) {
+                                                const chunk = stringChunks[i];
+                                                if (charCount >= LIMIT) break;
+                                                const remaining = LIMIT - charCount;
+                                                const text = chunk.length > remaining
+                                                    ? chunk.substring(0, remaining) + '...'
+                                                    : chunk;
+                                                charCount += chunk.length;
+                                                blocks.push(
+                                                    <div
+                                                        key={i}
+                                                        className="border-l-2 border-indigo-300 pl-3 py-1 bg-indigo-50/40 rounded-r whitespace-pre-wrap"
+                                                    >
+                                                        <span className="text-xs font-bold text-indigo-700 mr-1">{i + 1}.</span>
+                                                        {text}
+                                                    </div>
+                                                );
+                                            }
+                                            blocks.push(
+                                                <button
+                                                    key="expand"
+                                                    onClick={toggleExpand}
+                                                    className="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-0.5 text-xs"
+                                                >
+                                                    Expand <ChevronDown className="w-3 h-3" />
+                                                </button>
+                                            );
+                                            return blocks;
+                                        })()}
+                                    </div>
+                                ) : (
+                                    <>
+                                        {displayString.substring(0, LIMIT)}
+                                        <span>... </span>
+                                        <button
+                                            onClick={toggleExpand}
+                                            className="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-0.5 text-xs"
+                                        >
+                                            Expand <ChevronDown className="w-3 h-3" />
+                                        </button>
+                                    </>
+                                )}
                             </>
                         )
                     ) : (
@@ -389,7 +482,19 @@ export function ResultItem({ item, compact = false, watermark = null }) {
                                     {Object.entries(snippetData).map(([key, value]) => (
                                         <div key={key} className="whitespace-pre-wrap">
                                             <span className="font-semibold">{key}:</span>{' '}
-                                            {renderNestedValue(value, key)}
+                                            {renderNestedValue(value, key, maxChunks)}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : hasMultipleChunks ? (
+                                <div className="space-y-2">
+                                    {stringChunks.map((chunk, i) => (
+                                        <div
+                                            key={i}
+                                            className="border-l-2 border-indigo-300 pl-3 py-1 bg-indigo-50/40 rounded-r whitespace-pre-wrap"
+                                        >
+                                            <span className="text-xs font-bold text-indigo-700 mr-1">{i + 1}.</span>
+                                            {chunk}
                                         </div>
                                     ))}
                                 </div>

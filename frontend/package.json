@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
     "lucide-react": "^0.562.0",
     "react": "^18.2.0",
+    "react-day-picker": "^10.0.1",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0",
     "tailwind-merge": "^3.4.0"

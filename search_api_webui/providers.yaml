@@ -11,6 +11,7 @@ querit:
     count: "{limit}"
   advanced_payload_tpl:
     count: 5
+    chunksPerDoc: 1
     filters:
       sites:
         include: []
@@ -31,6 +32,7 @@ querit:
       site_name: "site_name"
       site_icon: "site_icon"
       page_age: "page_age"
+      snippet: "snippet"
 
 you:
   url: "https://ydc-index.io/v1/search"
@@ -60,6 +62,7 @@ you:
       title: "title"
       site_icon: "favicon_url"
       page_age: "page_age"
+      snippet: "snippets[0] || description"
 
 tavily:
   url: "https://api.tavily.com/search"
@@ -93,6 +96,7 @@ tavily:
       title: "title"
       page_age: "published_date"
       site_icon: "favicon"
+      snippet: "content"
 
 exa:
   url: "https://api.exa.ai/search"
@@ -123,6 +127,7 @@ exa:
       title: "title"
       site_icon: "favicon"
       page_age: "publishedDate"
+      snippet: "text"
 
 parallel:
   url: "https://api.parallel.ai/v1beta/search"
@@ -179,6 +184,7 @@ baidu:
       site_name: "website"
       site_icon: "icon"
       page_age: "date"
+      snippet: "abstract"
 
 brave:
   url: "https://api.search.brave.com/res/v1/web/search"
@@ -205,6 +211,7 @@ brave:
       url: "url"
       title: "title"
       page_age: "page_age"
+      snippet: "description"
 
 serper:
   url: "https://google.serper.dev/search"
@@ -224,6 +231,7 @@ serper:
     fields:
       url: "link"
       title: "title"
+      snippet: "snippet"
 
 anysearch:
   url: "https://api.anysearch.com/v1/search"
@@ -255,3 +263,4 @@ anysearch:
       url: "url"
       title: "title"
       page_age: "published_at"
+      snippet: "snippet"
